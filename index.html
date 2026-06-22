@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="ja">
+<!--
+  ベンチマーク・ナビ（Firebase同期版）
+  ジャンル選定(STEP1) → 同ジャンルで今伸びてるベンチ先(STEP2) のつながりを記録・可視化。
+  Googleログインした本人のデータだけ、PC↔スマホで同期される。
+  ▼ あなたがやること：下の firebaseConfig を自分のFirebaseの値に差し替える（手順.md参照）
+-->
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>ベンチマーク・ナビ</title>
+<style>
+  :root{--ink:#15213e;--ink-soft:#26365c;--paper:#eef1f6;--card:#ffffff;--text:#1b2333;--muted:#6b7585;--line:#dde3ec;--good:#0f8f60;--good-bg:#e3f5ec;--warn:#b67613;--warn-bg:#fbf0d8;--link:#2f63e6;--branch:#bcc8da;--shadow:0 1px 2px rgba(21,33,62,.06),0 6px 18px rgba(21,33,62,.06);}
+  *{box-sizing:border-box} html,body{margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;background:var(--paper);color:var(--text);-webkit-font-smoothing:antialiased;line-height:1.5;}
+  .app{max-width:760px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:var(--paper);position:relative}
+  header{position:sticky;top:0;z-index:20;background:var(--ink);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  header .left{display:flex;flex-direction:column}
+  header .brand{font-weight:800;letter-spacing:.02em;font-size:15px}
+  header .sub{font-size:11px;color:#aebbd6;font-weight:500}
+  header .auth{font-size:11.5px;display:flex;align-items:center;gap:8px}
+  .pill{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:999px;padding:7px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+  .pill:active{transform:translateY(1px)}
+  .who{color:#cdd7ec;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  main{flex:1;padding:16px 14px 96px}
+  .view-title{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 12px}
+  .view-title h2{font-size:18px;font-weight:800;letter-spacing:-.01em;margin:0}
+  .view-title .hint{font-size:11.5px;color:var(--muted);max-width:58%;text-align:right}
+  .addbtn{appearance:none;border:0;background:var(--ink);color:#fff;font-weight:700;font-size:13px;padding:9px 14px;border-radius:999px;cursor:pointer;white-space:nowrap;box-shadow:var(--shadow)}
+  .addbtn:active{transform:translateY(1px)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:11px;box-shadow:var(--shadow)}
+  .card.tap{cursor:pointer;transition:border-color .15s}
+  .card.tap:hover{border-color:#c3ccdb}
+  .row1{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .name{font-weight:700;font-size:15px;margin:0}
+  .url{font-size:12px;color:var(--link);text-decoration:none;word-break:break-all}
+  .url:hover{text-decoration:underline}
+  .meta{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:9px}
+  .meta .m{font-size:12px;color:var(--muted)}
+  .meta .m b{display:block;color:var(--text);font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.25}
+  .badge{font-size:11.5px;font-weight:800;padding:4px 9px;border-radius:999px;white-space:nowrap}
+  .b-good{background:var(--good-bg);color:var(--good)} .b-warn{background:var(--warn-bg);color:var(--warn)}
+  .tag{display:inline-block;font-size:11px;font-weight:700;color:var(--ink-soft);background:#e9eef7;border-radius:6px;padding:3px 8px}
+  .memo{font-size:12.5px;color:var(--muted);margin-top:8px}
+  .empty{text-align:center;padding:40px 18px;color:var(--muted)}
+  .empty .big{font-size:15px;color:var(--text);font-weight:700;margin-bottom:6px} .empty .small{font-size:12.5px}
+  .sumbar{display:flex;gap:8px;margin-bottom:14px}
+  .sumbar .s{flex:1;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 8px;text-align:center;box-shadow:var(--shadow)}
+  .sumbar .s .n{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+  .sumbar .s .l{font-size:10.5px;color:var(--muted);margin-top:4px}
+  .genreblock{margin-bottom:16px}
+  .gnode{background:var(--ink);color:#fff;border-radius:13px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;box-shadow:var(--shadow)}
+  .gnode .gn{font-weight:800;font-size:15px} .gnode .gmeta{font-size:11px;color:#b9c5de;margin-top:2px;font-variant-numeric:tabular-nums}
+  .gcount{background:rgba(255,255,255,.16);color:#fff;font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:999px;white-space:nowrap}
+  .branches{margin:0 0 0 20px;border-left:2px solid var(--branch);padding:6px 0 2px 0}
+  .leaf{position:relative;margin:8px 0;padding-left:16px}
+  .leaf::before{content:"";position:absolute;left:0;top:18px;width:14px;height:2px;background:var(--branch)}
+  .leafcard{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;box-shadow:var(--shadow)}
+  .leafcard .ln{font-weight:700;font-size:13.5px} .leafcard .lm{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:1px}
+  .noleaf{margin:8px 0 4px 16px;font-size:12px;color:var(--warn);font-weight:600}
+  nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--card);border-top:1px solid var(--line);display:flex;max-width:760px;margin:0 auto}
+  nav button{flex:1;appearance:none;border:0;background:none;padding:9px 4px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--muted);font:inherit}
+  nav button .ic{font-size:18px;line-height:1} nav button .lb{font-size:10.5px;font-weight:700}
+  nav button.on{color:var(--ink)}
+  .scrim{position:fixed;inset:0;background:rgba(21,33,62,.45);z-index:40;display:none;align-items:flex-end;justify-content:center}
+  .scrim.show{display:flex}
+  .sheet{background:var(--card);width:100%;max-width:760px;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+  @media(min-width:560px){.scrim{align-items:center}.sheet{border-radius:18px;max-height:88vh}}
+  .sheet h3{margin:2px 0 14px;font-size:17px;font-weight:800}
+  .fld{margin-bottom:12px}
+  .fld label{display:block;font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:5px}
+  .fld .note{font-weight:500;color:var(--muted);font-size:11px}
+  .fld input,.fld select,.fld textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:inherit;font-size:15px;background:#fbfcfe;color:var(--text)}
+  .fld input:focus,.fld select:focus,.fld textarea:focus{outline:2px solid var(--link);outline-offset:0;border-color:transparent}
+  .fld textarea{min-height:58px;resize:vertical}
+  .two{display:flex;gap:10px}.two .fld{flex:1}
+  .live{font-size:12px;font-weight:700;margin:-4px 0 10px;min-height:16px}
+  .acts{display:flex;gap:10px;margin-top:6px}
+  .acts button{flex:1;appearance:none;border:0;border-radius:11px;padding:13px;font:inherit;font-weight:800;font-size:14px;cursor:pointer}
+  .save{background:var(--ink);color:#fff}.save:active{transform:translateY(1px)}
+  .del{background:#fff;color:#c0392b;border:1px solid #f0c9c4;flex:0 0 auto;padding:13px 16px}
+  .cancel{background:#eef1f6;color:var(--ink-soft)}
+  .loading{text-align:center;padding:50px;color:var(--muted);font-size:13px}
+  .gate{text-align:center;padding:60px 24px}
+  .gate .big{font-size:18px;font-weight:800;margin-bottom:8px}
+  .gate .small{font-size:13px;color:var(--muted);margin-bottom:22px;max-width:360px;margin-left:auto;margin-right:auto}
+  .gbtn{appearance:none;border:0;background:var(--ink);color:#fff;font-weight:800;font-size:15px;padding:13px 22px;border-radius:12px;cursor:pointer;box-shadow:var(--shadow)}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="left"><span class="brand">ベンチマーク・ナビ</span><span class="sub">稼げるジャンル → 今伸びてるベンチ先</span></div>
+    <div class="auth" id="auth"></div>
+  </header>
+  <main id="main"><div class="loading">読み込み中…</div></main>
+  <nav id="nav">
+    <button data-v="genre" class="on"><span class="ic">◎</span><span class="lb">ジャンル</span></button>
+    <button data-v="bench"><span class="ic">▲</span><span class="lb">ベンチ先</span></button>
+    <button data-v="map"><span class="ic">⛓</span><span class="lb">つながり</span></button>
+  </nav>
+</div>
+<div class="scrim" id="scrim"><div class="sheet" id="sheet"></div></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+/* ▼▼▼ ここを自分のFirebaseの値に差し替える（手順.md参照）▼▼▼ */
+const firebaseConfig = {
+  apiKey: "PASTE_API_KEY",
+  authDomain: "PASTE_PROJECT.firebaseapp.com",
+  projectId: "PASTE_PROJECT_ID",
+  appId: "PASTE_APP_ID"
+};
+/* ▲▲▲ ここまで ▲▲▲ */
+
+const configured = !String(firebaseConfig.apiKey).startsWith("PASTE_");
+let auth=null, db=null, user=null;
+if(configured){ const fapp=initializeApp(firebaseConfig); auth=getAuth(fapp); db=getFirestore(fapp); }
+
+let genres=[], benches=[], view="genre";
+const $main=document.getElementById("main"), $auth=document.getElementById("auth"), $scrim=document.getElementById("scrim"), $sheet=document.getElementById("sheet");
+const nowY=new Date().getFullYear();
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const num=v=>{const n=parseFloat(String(v).replace(/,/g,""));return isNaN(n)?null:n;};
+const val=id=>{const el=document.getElementById(id);return el?el.value:"";};
+
+function renderAuth(){
+  if(!configured){ $auth.innerHTML='<span style="color:#aebbd6">未設定</span>'; return; }
+  if(user){ $auth.innerHTML='<span class="who">'+esc(user.email||user.displayName||"ログイン中")+'</span><button class="pill" id="logout">ログアウト</button>';
+    document.getElementById("logout").onclick=()=>signOut(auth);
+  }else{ $auth.innerHTML='<button class="pill" id="login">ログイン</button>'; document.getElementById("login").onclick=doLogin; }
+}
+function doLogin(){ signInWithPopup(auth,new GoogleAuthProvider()).catch(e=>alert("ログインに失敗しました: "+e.message)); }
+
+if(configured){
+  onAuthStateChanged(auth, async u=>{ user=u; renderAuth();
+    if(u){ await loadCloud(); render(); } else { genres=[]; benches=[]; renderGate(); } });
+}else{ renderAuth(); renderGate(); }
+
+function userRef(){ return doc(db,"users",user.uid); }
+async function loadCloud(){
+  try{ const snap=await getDoc(userRef());
+    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; }
+    else { genres=[]; benches=[]; await saveCloud(); }
+  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; }
+}
+async function saveCloud(){ if(!user)return;
+  try{ await setDoc(userRef(),{genres,benches,updatedAt:Date.now()},{merge:true}); }
+  catch(e){ console.error(e); alert("保存でエラー: "+e.message); }
+}
+
+function genreOK(g){const sy=num(g.startYear),mv=num(g.monthly);if(sy==null||mv==null)return null;return (nowY-sy>=2)&&(mv>=100);}
+function monthsSince(d){if(!d)return null;const x=new Date(d);if(isNaN(x))return null;const n=new Date();return (n.getFullYear()-x.getFullYear())*12+(n.getMonth()-x.getMonth());}
+function benchOK(b){const s=num(b.subs);if(s==null||!b.open)return false;return s>1000;}
+function genreName(id){const g=genres.find(x=>x.id===id);return g?g.name:null;}
+
+function render(){ if(!user&&configured){renderGate();return;} if(view==="genre")renderGenre(); else if(view==="bench")renderBench(); else renderMap(); }
+function renderGate(){
+  if(!configured){ $main.innerHTML='<div class="gate"><div class="big">セットアップが必要です</div><div class="small">同梱の「セットアップ手順.md」に沿って、コード冒頭の firebaseConfig にあなたのFirebaseの値を貼ってください。</div></div>'; return; }
+  $main.innerHTML='<div class="gate"><div class="big">ログインして始める</div><div class="small">Googleでログインすると、入力データがあなた専用に保存され、PC・スマホで同期されます。</div><button class="gbtn" id="gateLogin">Googleでログイン</button></div>';
+  document.getElementById("gateLogin").onclick=doLogin;
+}
+
+function renderGenre(){
+  let h='<div class="view-title"><h2>稼げるジャンル</h2><button class="addbtn" id="addG">＋ ジャンル</button></div><div style="font-size:12px;color:var(--muted);margin:0 2px 12px">数年安定して伸びている「古くて大きいch」で、そのジャンルが稼げるかを見極める。</div>';
+  if(genres.length===0){ h+='<div class="empty"><div class="big">まずジャンルを1つ登録</div><div class="small">vidIQで長期間安定して伸びているチャンネルを見つけ、代表例として登録しよう。</div></div>'; }
+  else{ genres.forEach(g=>{ const ok=genreOK(g);
+    const badge=ok===null?'<span class="badge b-warn">未入力</span>':ok?'<span class="badge b-good">◎ 稼げる</span>':'<span class="badge b-warn">要確認</span>';
+    const years=num(g.startYear)!=null?(nowY-num(g.startYear))+"年":"–";
+    h+='<div class="card tap" data-eg="'+g.id+'"><div class="row1"><div><p class="name">'+esc(g.name||"(無名のジャンル)")+'</p>'+(g.url?'<a class="url" href="'+esc(g.url)+'" target="_blank" rel="noopener">'+esc(g.rep||g.url)+'</a>':(g.rep?'<span style="font-size:12px;color:var(--muted)">'+esc(g.rep)+'</span>':''))+'</div>'+badge+'</div><div class="meta"><span class="m">登録者<b>'+(num(g.subs)!=null?num(g.subs)+"万":"–")+'</b></span><span class="m">開始<b>'+(g.startYear?esc(g.startYear):"–")+'</b></span><span class="m">継続<b>'+years+'</b></span><span class="m">月間再生<b>'+(num(g.monthly)!=null?num(g.monthly)+"万":"–")+'</b></span></div>'+(g.memo?'<div class="memo">'+esc(g.memo)+'</div>':'')+'</div>'; }); }
+  $main.innerHTML=h;
+  document.getElementById("addG").onclick=()=>editGenre(null);
+  $main.querySelectorAll("[data-eg]").forEach(el=>el.onclick=e=>{if(e.target.classList.contains("url"))return;editGenre(el.getAttribute("data-eg"));});
+}
+function editGenre(id){
+  const g=id?genres.find(x=>x.id===id):{};
+  const f={name:g.name||"",rep:g.rep||"",url:g.url||"",subs:g.subs||"",startYear:g.startYear||"",monthly:g.monthly||"",memo:g.memo||""};
+  let h='<h3>'+(id?"ジャンルを編集":"ジャンルを追加")+'</h3>'+fld("ジャンル名","g_name",f.name,"text","例：focus music")+fld("代表チャンネル名","g_rep",f.rep,"text","vidIQで確認した代表例")+fld("代表チャンネルURL","g_url",f.url,"url","https://www.youtube.com/@...")+'<div class="two">'+fld("登録者数（万）","g_subs",f.subs,"number","例：132")+fld("開始年（西暦）","g_year",f.startYear,"number","例：2010")+'</div>'+fld("月間再生数（万）","g_monthly",f.monthly,"number","例：300（=300万）")+'<div class="live" id="g_live"></div>'+fld("結論メモ","g_memo",f.memo,"textarea","このジャンルにするか／気づき")+'<div class="acts">'+(id?'<button class="del" id="g_del">削除</button>':'')+'<button class="cancel" id="g_cancel">閉じる</button><button class="save" id="g_save">保存</button></div>';
+  openSheet(h);
+  const liveCalc=()=>{const sy=num(val("g_year")),mv=num(val("g_monthly"));const L=document.getElementById("g_live");if(sy==null||mv==null){L.textContent="";return;}const ok=(nowY-sy>=2)&&(mv>=100);L.innerHTML=ok?'<span style="color:var(--good)">◎ 稼げる（継続'+(nowY-sy)+'年・月間'+mv+'万）</span>':'<span style="color:var(--warn)">要確認（基準：継続2年以上＋月間100万以上）</span>';};
+  document.getElementById("g_year").oninput=liveCalc; document.getElementById("g_monthly").oninput=liveCalc; liveCalc();
+  document.getElementById("g_save").onclick=async()=>{ const obj={id:id||uid(),name:val("g_name").trim(),rep:val("g_rep").trim(),url:val("g_url").trim(),subs:val("g_subs").trim(),startYear:val("g_year").trim(),monthly:val("g_monthly").trim(),memo:val("g_memo").trim()};
+    if(!obj.name){alert("ジャンル名を入れてください");return;} genres=id?genres.map(x=>x.id===id?obj:x):genres.concat([obj]); await saveCloud(); closeSheet(); render(); };
+  if(id)document.getElementById("g_del").onclick=async()=>{ if(!confirm("このジャンルを削除しますか？（紐づくベンチ先は未設定に戻ります）"))return; genres=genres.filter(x=>x.id!==id); benches=benches.map(b=>b.genreId===id?{...b,genreId:""}:b); await saveCloud(); closeSheet(); render(); };
+  document.getElementById("g_cancel").onclick=closeSheet;
+}
+
+function renderBench(){
+  let h='<div class="view-title"><h2>ベンチマーク先</h2><button class="addbtn" id="addB">＋ ベンチ先</button></div><div style="font-size:12px;color:var(--muted);margin:0 2px 12px">選んだジャンル内で「今伸びてる新しいch」。開設1〜3ヶ月・登録者1000人超が目安。</div>';
+  if(genres.length===0){ h+='<div class="empty"><div class="big">先にジャンルを登録</div><div class="small">ベンチ先はジャンルに紐づけて管理します。「ジャンル」タブで1つ登録してから戻ってきてください。</div></div>'; $main.innerHTML=h; return; }
+  if(benches.length===0){ h+='<div class="empty"><div class="big">ベンチ先をまだ登録していません</div><div class="small">稼げるジャンル内で、今伸びている新しいチャンネルを追加しよう。</div></div>'; }
+  else{ benches.forEach(b=>{ const ok=benchOK(b); const ms=monthsSince(b.open); const win=ms!=null&&ms>=0&&ms<=3;
+    const badge=ok?'<span class="badge b-good">選定OK</span>':'<span class="badge b-warn">要確認</span>'; const gname=genreName(b.genreId);
+    h+='<div class="card tap" data-eb="'+b.id+'"><div class="row1"><div><p class="name">'+esc(b.name||"(無名のch)")+'</p>'+(b.url?'<a class="url" href="'+esc(b.url)+'" target="_blank" rel="noopener">'+esc(b.url)+'</a>':'')+'</div>'+badge+'</div><div class="meta"><span class="m">登録者<b>'+(num(b.subs)!=null?num(b.subs).toLocaleString():"–")+'</b></span><span class="m">開設<b>'+(b.open?esc(b.open):"–")+'</b></span><span class="m">経過<b>'+(ms!=null?ms+"ヶ月"+(win?" ✓":""):"–")+'</b></span></div><div style="margin-top:9px">'+(gname?'<span class="tag">◎ '+esc(gname)+'</span>':'<span class="tag" style="background:#fbf0d8;color:var(--warn)">ジャンル未設定</span>')+(ms!=null&&ms>3?'<span class="tag" style="background:#fbf0d8;color:var(--warn);margin-left:6px">開設3ヶ月超</span>':'')+'</div>'+(b.memo?'<div class="memo">'+esc(b.memo)+'</div>':'')+'</div>'; }); }
+  $main.innerHTML=h;
+  document.getElementById("addB").onclick=()=>editBench(null);
+  $main.querySelectorAll("[data-eb]").forEach(el=>el.onclick=e=>{if(e.target.classList.contains("url"))return;editBench(el.getAttribute("data-eb"));});
+}
+function editBench(id){
+  const b=id?benches.find(x=>x.id===id):{};
+  const f={name:b.name||"",url:b.url||"",genreId:b.genreId||"",open:b.open||"",subs:b.subs||"",memo:b.memo||""};
+  const opts='<option value="">— ジャンルを選ぶ —</option>'+genres.map(g=>'<option value="'+g.id+'"'+(f.genreId===g.id?" selected":"")+'>'+esc(g.name)+'</option>').join("");
+  let h='<h3>'+(id?"ベンチ先を編集":"ベンチ先を追加")+'</h3><div class="fld"><label>紐づくジャンル <span class="note">どの稼げるジャンルのベンチか</span></label><select id="b_genre">'+opts+'</select></div>'+fld("チャンネル名","b_name",f.name,"text","例：Flow365")+fld("チャンネルURL","b_url",f.url,"url","https://www.youtube.com/@...")+'<div class="two">'+fld("開設時期","b_open",f.open,"date","")+fld("登録者数（人）","b_subs",f.subs,"number","例：7230")+'</div><div class="live" id="b_live"></div>'+fld("メモ","b_memo",f.memo,"textarea","特徴・狙いなど")+'<div class="acts">'+(id?'<button class="del" id="b_del">削除</button>':'')+'<button class="cancel" id="b_cancel">閉じる</button><button class="save" id="b_save">保存</button></div>';
+  openSheet(h);
+  const liveCalc=()=>{const s=num(val("b_subs")),open=val("b_open");const L=document.getElementById("b_live");const ms=monthsSince(open);const parts=[];if(s!=null)parts.push(s>1000?'<span style="color:var(--good)">登録者1000人超 ✓</span>':'<span style="color:var(--warn)">登録者1000人以下</span>');if(ms!=null)parts.push((ms>=0&&ms<=3)?'<span style="color:var(--good)">開設'+ms+'ヶ月（1〜3ヶ月内）✓</span>':'<span style="color:var(--warn)">開設'+ms+'ヶ月</span>');L.innerHTML=parts.join('　');};
+  document.getElementById("b_subs").oninput=liveCalc; document.getElementById("b_open").oninput=liveCalc; liveCalc();
+  document.getElementById("b_save").onclick=async()=>{ const obj={id:id||uid(),genreId:val("b_genre"),name:val("b_name").trim(),url:val("b_url").trim(),open:val("b_open"),subs:val("b_subs").trim(),memo:val("b_memo").trim()};
+    if(!obj.name){alert("チャンネル名を入れてください");return;} benches=id?benches.map(x=>x.id===id?obj:x):benches.concat([obj]); await saveCloud(); closeSheet(); render(); };
+  if(id)document.getElementById("b_del").onclick=async()=>{ if(!confirm("このベンチ先を削除しますか？"))return; benches=benches.filter(x=>x.id!==id); await saveCloud(); closeSheet(); render(); };
+  document.getElementById("b_cancel").onclick=closeSheet;
+}
+
+function renderMap(){
+  const profitable=genres.filter(g=>genreOK(g)===true).length;
+  const linked=benches.filter(b=>b.genreId&&genreName(b.genreId)).length;
+  const orphan=benches.length-linked;
+  let h='<div class="view-title"><h2>つながりマップ</h2><div class="hint">稼げるジャンルに、今伸びてるベンチ先が紐づいているか</div></div><div class="sumbar"><div class="s"><div class="n">'+profitable+'</div><div class="l">◎稼げるジャンル</div></div><div class="s"><div class="n">'+linked+'</div><div class="l">紐づくベンチ先</div></div><div class="s"><div class="n" style="color:'+(orphan>0?"var(--warn)":"var(--text)")+'">'+orphan+'</div><div class="l">未紐付け</div></div></div>';
+  if(genres.length===0){ h+='<div class="empty"><div class="big">まだつながりがありません</div><div class="small">「ジャンル」→「ベンチ先」の順に登録すると、ここに関係が見えてきます。</div></div>'; $main.innerHTML=h; return; }
+  genres.forEach(g=>{ const kids=benches.filter(b=>b.genreId===g.id); const ok=genreOK(g); const dot=ok===true?'◎':ok===false?'△':'…';
+    h+='<div class="genreblock"><div class="gnode"><div><div class="gn">'+dot+' '+esc(g.name)+'</div><div class="gmeta">'+(num(g.subs)!=null?num(g.subs)+"万人・":"")+(g.startYear?esc(g.startYear)+"〜":"")+(num(g.monthly)!=null?"月間"+num(g.monthly)+"万":"")+'</div></div><span class="gcount">ベンチ先 '+kids.length+'</span></div>';
+    if(kids.length){ h+='<div class="branches">'; kids.forEach(b=>{const bok=benchOK(b),ms=monthsSince(b.open);
+      h+='<div class="leaf"><div class="leafcard"><div><div class="ln">'+(b.url?'<a class="url" href="'+esc(b.url)+'" target="_blank" rel="noopener">'+esc(b.name)+'</a>':esc(b.name))+'</div><div class="lm">'+(num(b.subs)!=null?num(b.subs).toLocaleString()+"人":"–")+(ms!=null?"・開設"+ms+"ヶ月":"")+'</div></div>'+(bok?'<span class="badge b-good">OK</span>':'<span class="badge b-warn">要確認</span>')+'</div></div>';}); h+='</div>';
+    }else{ h+='<div class="noleaf">↳ ベンチ先未登録 — このジャンルで今伸びてるchを探そう</div>'; }
+    h+='</div>'; });
+  const orphans=benches.filter(b=>!b.genreId||!genreName(b.genreId));
+  if(orphans.length){ h+='<div class="genreblock"><div class="gnode" style="background:var(--warn)"><div><div class="gn">ジャンル未設定</div><div class="gmeta">どの稼げるジャンルにも紐づいていない</div></div><span class="gcount">'+orphans.length+'</span></div><div class="branches">';
+    orphans.forEach(b=>{h+='<div class="leaf"><div class="leafcard"><div class="ln">'+esc(b.name)+'</div><span class="badge b-warn">紐付け要</span></div></div>';}); h+='</div></div>'; }
+  $main.innerHTML=h;
+  $main.querySelectorAll(".url").forEach(a=>a.onclick=e=>e.stopPropagation());
+}
+
+function fld(label,id,v,type,ph){ if(type==="textarea") return '<div class="fld"><label>'+label+'</label><textarea id="'+id+'" placeholder="'+esc(ph)+'">'+esc(v)+'</textarea></div>';
+  return '<div class="fld"><label>'+label+'</label><input id="'+id+'" type="'+type+'" value="'+esc(v)+'" placeholder="'+esc(ph)+'"'+(type==="number"?' inputmode="numeric"':'')+'></div>'; }
+function openSheet(html){$sheet.innerHTML=html;$scrim.classList.add("show");}
+function closeSheet(){$scrim.classList.remove("show");$sheet.innerHTML="";}
+$scrim.onclick=e=>{if(e.target===$scrim)closeSheet();};
+document.querySelectorAll("#nav button").forEach(btn=>btn.onclick=()=>{ view=btn.getAttribute("data-v"); document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b===btn)); render(); });
+</script>
+</body>
+</html>
