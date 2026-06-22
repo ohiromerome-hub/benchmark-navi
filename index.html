@@ -100,6 +100,7 @@
     <button data-v="genre" class="on"><span class="ic">◎</span><span class="lb">ジャンル</span></button>
     <button data-v="bench"><span class="ic">▲</span><span class="lb">ベンチ先</span></button>
     <button data-v="map"><span class="ic">⛓</span><span class="lb">つながり</span></button>
+    <button data-v="qa"><span class="ic">❓</span><span class="lb">Q&amp;A</span></button>
   </nav>
 </div>
 <div class="scrim" id="scrim"><div class="sheet" id="sheet"></div></div>
@@ -122,7 +123,7 @@ const configured = !String(firebaseConfig.apiKey).startsWith("PASTE_");
 let auth=null, db=null, user=null;
 if(configured){ const fapp=initializeApp(firebaseConfig); auth=getAuth(fapp); db=getFirestore(fapp); }
 
-let genres=[], benches=[], view="genre";
+let genres=[], benches=[], qas=[], view="genre";
 const $main=document.getElementById("main"), $auth=document.getElementById("auth"), $scrim=document.getElementById("scrim"), $sheet=document.getElementById("sheet");
 const nowY=new Date().getFullYear();
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -146,12 +147,12 @@ if(configured){
 function userRef(){ return doc(db,"users",user.uid); }
 async function loadCloud(){
   try{ const snap=await getDoc(userRef());
-    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; }
-    else { genres=[]; benches=[]; await saveCloud(); }
-  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; }
+    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; }
+    else { genres=[]; benches=[]; qas=[]; await saveCloud(); }
+  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; }
 }
 async function saveCloud(){ if(!user)return;
-  try{ await setDoc(userRef(),{genres,benches,updatedAt:Date.now()},{merge:true}); }
+  try{ await setDoc(userRef(),{genres,benches,qas,updatedAt:Date.now()},{merge:true}); }
   catch(e){ console.error(e); alert("保存でエラー: "+e.message); }
 }
 
@@ -160,7 +161,7 @@ function monthsSince(d){if(!d)return null;const x=new Date(d);if(isNaN(x))return
 function benchOK(b){const s=num(b.subs);if(s==null||!b.open)return false;return s>1000;}
 function genreName(id){const g=genres.find(x=>x.id===id);return g?g.name:null;}
 
-function render(){ if(!user&&configured){renderGate();return;} if(view==="genre")renderGenre(); else if(view==="bench")renderBench(); else renderMap(); }
+function render(){ if(!user&&configured){renderGate();return;} if(view==="genre")renderGenre(); else if(view==="bench")renderBench(); else if(view==="qa")renderQA(); else renderMap(); }
 function renderGate(){
   if(!configured){ $main.innerHTML='<div class="gate"><div class="big">セットアップが必要です</div><div class="small">同梱の「セットアップ手順.md」に沿って、コード冒頭の firebaseConfig にあなたのFirebaseの値を貼ってください。</div></div>'; return; }
   $main.innerHTML='<div class="gate"><div class="big">ログインして始める</div><div class="small">Googleでログインすると、入力データがあなた専用に保存され、PC・スマホで同期されます。</div><button class="gbtn" id="gateLogin">Googleでログイン</button></div>';
@@ -235,6 +236,53 @@ function renderMap(){
   $main.querySelectorAll(".url").forEach(a=>a.onclick=e=>e.stopPropagation());
 }
 
+function renderQA(){
+  const list=qas.slice().sort((a,b)=>String(a.sourceTime||"").localeCompare(String(b.sourceTime||"")));
+  const unchecked=list.filter(q=>!q.checked).length;
+  let h='<div class="view-title"><h2>Q&amp;A</h2><div><button class="addbtn" id="impQA" style="background:#eef1f6;color:var(--ink-soft);margin-right:6px">まとめて追加</button><button class="addbtn" id="addQA">＋ Q&amp;A</button></div></div><div style="font-size:12px;color:var(--muted);margin:0 2px 12px">キラさん（AI×BGM×YouTube）のQ&amp;A。質問は要約＋全文を保存。要約が適切か見比べてチェックできます。</div>';
+  if(list.length){ h+='<div class="sumbar"><div class="s"><div class="n">'+list.length+'</div><div class="l">Q&amp;A件数</div></div><div class="s"><div class="n" style="color:'+(unchecked>0?"var(--warn)":"var(--good)")+'">'+unchecked+'</div><div class="l">未チェック</div></div></div>'; }
+  if(list.length===0){ h+='<div class="empty"><div class="big">まだQ&amp;Aがありません</div><div class="small">「まとめて追加」で抽出したQ&amp;Aを一括インポートするか、「＋ Q&amp;A」で1件ずつ追加できます。</div></div>'; }
+  else{ list.forEach(q=>{ const badge=q.checked?'<span class="badge b-good">✓ 確認済み</span>':'<span class="badge b-warn">未チェック</span>';
+    h+='<div class="card tap" data-eq="'+q.id+'"><div class="row1"><div>'+(q.category?'<span class="tag">'+esc(q.category)+'</span>':'')+'<p class="name" style="margin-top:6px">'+esc(q.qSummary||"(要約なし)")+'</p></div>'+badge+'</div>'+(q.answer?'<div class="memo">'+esc(String(q.answer).slice(0,90))+(String(q.answer).length>90?'…':'')+'</div>':'')+'<div class="meta"><span class="m">質問者<b>'+esc(q.asker||"–")+'</b></span><span class="m">日時<b>'+esc(String(q.sourceTime||"–").slice(0,10))+'</b></span></div></div>'; }); }
+  $main.innerHTML=h;
+  document.getElementById("addQA").onclick=()=>editQA(null);
+  document.getElementById("impQA").onclick=importQA;
+  $main.querySelectorAll("[data-eq]").forEach(el=>el.onclick=()=>editQA(el.getAttribute("data-eq")));
+}
+function editQA(id){
+  const q=id?qas.find(x=>x.id===id):{};
+  const f={category:q.category||"",qFull:q.qFull||"",qSummary:q.qSummary||"",answer:q.answer||"",asker:q.asker||"",sourceTime:q.sourceTime||"",checked:!!q.checked};
+  let h='<h3>'+(id?"Q&amp;Aを編集":"Q&amp;Aを追加")+'</h3>'
+    +fld("カテゴリ","q_cat",f.category,"text","例：著作権 / SUNO / 収益化")
+    +fld("質問 全文（視聴者の質問）","q_full",f.qFull,"textarea","視聴者の質問の原文")
+    +fld("質問 要約（チェック対象・上の全文と見比べる）","q_sum",f.qSummary,"textarea","上の全文を短く要約。適切か確認")
+    +fld("回答 全文（キラさん）","q_ans",f.answer,"textarea","キラさんの回答 全文そのまま")
+    +'<div class="two">'+fld("質問者","q_asker",f.asker,"text","")+fld("日時","q_time",f.sourceTime,"text","2026-06-19 15:15")+'</div>'
+    +'<div class="fld"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="q_chk" style="width:auto"'+(f.checked?" checked":"")+'>要約を確認済みにする</label></div>'
+    +'<div class="acts">'+(id?'<button class="del" id="q_del">削除</button>':'')+'<button class="cancel" id="q_cancel">閉じる</button><button class="save" id="q_save">保存</button></div>';
+  openSheet(h);
+  document.getElementById("q_save").onclick=async()=>{ const obj={id:id||uid(),category:val("q_cat").trim(),qFull:val("q_full").trim(),qSummary:val("q_sum").trim(),answer:val("q_ans").trim(),asker:val("q_asker").trim(),sourceTime:val("q_time").trim(),checked:document.getElementById("q_chk").checked};
+    if(!obj.qSummary&&!obj.answer){alert("要約か回答を入れてください");return;} qas=id?qas.map(x=>x.id===id?obj:x):qas.concat([obj]); await saveCloud(); closeSheet(); render(); };
+  if(id)document.getElementById("q_del").onclick=async()=>{ if(!confirm("このQ&Aを削除しますか？"))return; qas=qas.filter(x=>x.id!==id); await saveCloud(); closeSheet(); render(); };
+  document.getElementById("q_cancel").onclick=closeSheet;
+}
+function importQA(){
+  let h='<h3>Q&amp;Aをまとめて追加</h3><div class="fld"><label>JSON配列を貼り付け <span class="note">[{category,qSummary,qFull,answer,asker,sourceTime}, ...]</span></label><textarea id="q_json" style="min-height:160px" placeholder=\'[{"category":"...","qSummary":"...","qFull":"...","answer":"...","asker":"...","sourceTime":"2026-06-19 15:15"}]\'></textarea></div><div class="live" id="q_imperr"></div><div class="acts"><button class="cancel" id="q_icancel">閉じる</button><button class="save" id="q_iload">読み込む</button></div>';
+  openSheet(h);
+  document.getElementById("q_iload").onclick=async()=>{
+    const raw=val("q_json").trim(); const E=document.getElementById("q_imperr");
+    if(!raw){E.innerHTML='<span style="color:var(--warn)">JSONを貼ってください</span>';return;}
+    let arr; try{ arr=JSON.parse(raw); }catch(e){ E.innerHTML='<span style="color:#c0392b">JSONの形式が不正: '+esc(e.message)+'</span>'; return; }
+    if(!Array.isArray(arr)){ E.innerHTML='<span style="color:#c0392b">配列（[...]）を貼ってください</span>'; return; }
+    const existing=new Set(qas.map(q=>(q.sourceTime||"")+"|"+(q.asker||"")));
+    let added=0,skip=0;
+    arr.forEach(o=>{ if(!o||typeof o!=="object")return; const key=(o.sourceTime||"")+"|"+(o.asker||"");
+      if(key!=="|"&&existing.has(key)){skip++;return;}
+      qas.push({id:uid(),category:o.category||"",qSummary:o.qSummary||"",qFull:o.qFull||"",answer:o.answer||"",asker:o.asker||"",sourceTime:o.sourceTime||"",checked:false}); existing.add(key); added++; });
+    await saveCloud(); closeSheet(); render(); alert("追加: "+added+"件 / 重複スキップ: "+skip+"件");
+  };
+  document.getElementById("q_icancel").onclick=closeSheet;
+}
 function fld(label,id,v,type,ph){ if(type==="textarea") return '<div class="fld"><label>'+label+'</label><textarea id="'+id+'" placeholder="'+esc(ph)+'">'+esc(v)+'</textarea></div>';
   return '<div class="fld"><label>'+label+'</label><input id="'+id+'" type="'+type+'" value="'+esc(v)+'" placeholder="'+esc(ph)+'"'+(type==="number"?' inputmode="numeric"':'')+'></div>'; }
 function openSheet(html){$sheet.innerHTML=html;$scrim.classList.add("show");}
