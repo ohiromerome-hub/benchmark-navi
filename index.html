@@ -243,7 +243,7 @@ function renderQA(){
   if(list.length){ h+='<div class="sumbar"><div class="s"><div class="n">'+list.length+'</div><div class="l">Q&amp;A件数</div></div><div class="s"><div class="n" style="color:'+(unchecked>0?"var(--warn)":"var(--good)")+'">'+unchecked+'</div><div class="l">未チェック</div></div></div>'; }
   if(list.length===0){ h+='<div class="empty"><div class="big">まだQ&amp;Aがありません</div><div class="small">「まとめて追加」で抽出したQ&amp;Aを一括インポートするか、「＋ Q&amp;A」で1件ずつ追加できます。</div></div>'; }
   else{ list.forEach(q=>{ const badge=q.checked?'<span class="badge b-good">✓ 確認済み</span>':'<span class="badge b-warn">未チェック</span>';
-    h+='<div class="card tap" data-eq="'+q.id+'"><div class="row1"><div>'+(q.category?'<span class="tag">'+esc(q.category)+'</span>':'')+'<p class="name" style="margin-top:6px">'+esc(q.qSummary||"(要約なし)")+'</p></div>'+badge+'</div>'+(q.answer?'<div class="memo">'+esc(String(q.answer).slice(0,90))+(String(q.answer).length>90?'…':'')+'</div>':'')+'<div class="meta"><span class="m">質問者<b>'+esc(q.asker||"–")+'</b></span><span class="m">日時<b>'+esc(String(q.sourceTime||"–").slice(0,10))+'</b></span></div></div>'; }); }
+    h+='<div class="card tap" data-eq="'+q.id+'"><div class="row1"><div>'+(q.category?'<span class="tag">'+esc(q.category)+'</span>':'')+'<p class="name" style="margin-top:6px">'+esc(q.qSummary||"(要約なし)")+'</p></div>'+badge+'</div>'+(q.answer?'<div class="memo">'+esc(String(q.answer).slice(0,90))+(String(q.answer).length>90?'…':'')+'</div>':'')+'<div class="meta"><span class="m">日時<b>'+esc(String(q.sourceTime||"–").slice(0,10))+'</b></span></div></div>'; }); }
   $main.innerHTML=h;
   document.getElementById("addQA").onclick=()=>editQA(null);
   document.getElementById("impQA").onclick=importQA;
