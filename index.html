@@ -243,7 +243,7 @@ function renderQA(){
   if(list.length){ h+='<div class="sumbar"><div class="s"><div class="n">'+list.length+'</div><div class="l">Q&amp;A件数</div></div><div class="s"><div class="n" style="color:'+(unchecked>0?"var(--warn)":"var(--good)")+'">'+unchecked+'</div><div class="l">未チェック</div></div></div>'; }
   if(list.length===0){ h+='<div class="empty"><div class="big">まだQ&amp;Aがありません</div><div class="small">「まとめて追加」で抽出したQ&amp;Aを一括インポートするか、「＋ Q&amp;A」で1件ずつ追加できます。</div></div>'; }
   else{ list.forEach(q=>{ const badge=q.checked?'<span class="badge b-good">✓ 確認済み</span>':'<span class="badge b-warn">未チェック</span>';
-    h+='<div class="card tap" data-eq="'+q.id+'"><div class="row1"><div>'+(q.category?'<span class="tag">'+esc(q.category)+'</span>':'')+'<p class="name" style="margin-top:6px">'+esc(q.qSummary||"(要約なし)")+'</p></div>'+badge+'</div>'+'<div class="meta"><span class="m">日時<b>'+esc(String(q.sourceTime||"–").slice(0,10))+'</b></span></div></div>'; }); }
+    h+='<div class="card tap" data-eq="'+q.id+'"><div class="row1"><div>'+(q.category?'<span class="tag">'+esc(q.category)+'</span>':'')+'<p class="name" style="margin-top:6px"><span style="color:var(--link);font-weight:800">Q. </span>'+esc(q.qSummary||"(要約なし)")+'</p></div>'+badge+'</div>'+(q.aSummary?'<div class="memo" style="color:var(--text);font-size:13px;line-height:1.65;margin-top:8px"><span style="color:var(--good);font-weight:800">A. </span>'+esc(q.aSummary)+'</div>':'')+'<div class="meta"><span class="m">日時<b>'+esc(String(q.sourceTime||"–").slice(0,10))+'</b></span></div></div>'; }); }
   $main.innerHTML=h;
   document.getElementById("addQA").onclick=()=>editQA(null);
   document.getElementById("impQA").onclick=importQA;
@@ -251,35 +251,39 @@ function renderQA(){
 }
 function editQA(id){
   const q=id?qas.find(x=>x.id===id):{};
-  const f={category:q.category||"",qFull:q.qFull||"",qSummary:q.qSummary||"",answer:q.answer||"",asker:q.asker||"",sourceTime:q.sourceTime||"",checked:!!q.checked};
+  const f={category:q.category||"",qFull:q.qFull||"",qSummary:q.qSummary||"",answer:q.answer||"",aSummary:q.aSummary||"",asker:q.asker||"",sourceTime:q.sourceTime||"",checked:!!q.checked};
   let h='<h3>'+(id?"Q&amp;Aを編集":"Q&amp;Aを追加")+'</h3>'
     +fld("カテゴリ","q_cat",f.category,"text","例：著作権 / SUNO / 収益化")
     +fld("質問 全文（視聴者の質問）","q_full",f.qFull,"textarea","視聴者の質問の原文")
-    +fld("質問 要約（チェック対象・上の全文と見比べる）","q_sum",f.qSummary,"textarea","上の全文を短く要約。適切か確認")
+    +fld("質問 要約（カード表示・上の全文と見比べる）","q_sum",f.qSummary,"textarea","上の全文を短く要約。適切か確認")
     +fld("回答 全文（キラさん）","q_ans",f.answer,"textarea","キラさんの回答 全文そのまま")
+    +fld("回答 要約（カード表示・回答全文の要点）","q_asum",f.aSummary,"textarea","回答の要点を短くまとめる")
     +'<div class="two">'+fld("質問者","q_asker",f.asker,"text","")+fld("日時","q_time",f.sourceTime,"text","2026-06-19 15:15")+'</div>'
     +'<div class="fld"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="q_chk" style="width:auto"'+(f.checked?" checked":"")+'>要約を確認済みにする</label></div>'
     +'<div class="acts">'+(id?'<button class="del" id="q_del">削除</button>':'')+'<button class="cancel" id="q_cancel">閉じる</button><button class="save" id="q_save">保存</button></div>';
   openSheet(h);
-  document.getElementById("q_save").onclick=async()=>{ const obj={id:id||uid(),category:val("q_cat").trim(),qFull:val("q_full").trim(),qSummary:val("q_sum").trim(),answer:val("q_ans").trim(),asker:val("q_asker").trim(),sourceTime:val("q_time").trim(),checked:document.getElementById("q_chk").checked};
+  document.getElementById("q_save").onclick=async()=>{ const obj={id:id||uid(),category:val("q_cat").trim(),qFull:val("q_full").trim(),qSummary:val("q_sum").trim(),answer:val("q_ans").trim(),aSummary:val("q_asum").trim(),asker:val("q_asker").trim(),sourceTime:val("q_time").trim(),checked:document.getElementById("q_chk").checked};
     if(!obj.qSummary&&!obj.answer){alert("要約か回答を入れてください");return;} qas=id?qas.map(x=>x.id===id?obj:x):qas.concat([obj]); await saveCloud(); closeSheet(); render(); };
   if(id)document.getElementById("q_del").onclick=async()=>{ if(!confirm("このQ&Aを削除しますか？"))return; qas=qas.filter(x=>x.id!==id); await saveCloud(); closeSheet(); render(); };
   document.getElementById("q_cancel").onclick=closeSheet;
 }
 function importQA(){
-  let h='<h3>Q&amp;Aをまとめて追加</h3><div class="fld"><label>JSON配列を貼り付け <span class="note">[{category,qSummary,qFull,answer,asker,sourceTime}, ...]</span></label><textarea id="q_json" style="min-height:160px" placeholder=\'[{"category":"...","qSummary":"...","qFull":"...","answer":"...","asker":"...","sourceTime":"2026-06-19 15:15"}]\'></textarea></div><div class="live" id="q_imperr"></div><div class="acts"><button class="cancel" id="q_icancel">閉じる</button><button class="save" id="q_iload">読み込む</button></div>';
+  let h='<h3>Q&amp;Aをまとめて追加</h3><div class="fld"><label>JSON配列を貼り付け <span class="note">[{category,qSummary,qFull,answer,aSummary,asker,sourceTime}, ...]（sourceTime+askerが一致する既存は更新）</span></label><textarea id="q_json" style="min-height:160px" placeholder=\'[{"category":"...","qSummary":"...","qFull":"...","answer":"...","asker":"...","sourceTime":"2026-06-19 15:15"}]\'></textarea></div><div class="live" id="q_imperr"></div><div class="acts"><button class="cancel" id="q_icancel">閉じる</button><button class="save" id="q_iload">読み込む</button></div>';
   openSheet(h);
   document.getElementById("q_iload").onclick=async()=>{
     const raw=val("q_json").trim(); const E=document.getElementById("q_imperr");
     if(!raw){E.innerHTML='<span style="color:var(--warn)">JSONを貼ってください</span>';return;}
     let arr; try{ arr=JSON.parse(raw); }catch(e){ E.innerHTML='<span style="color:#c0392b">JSONの形式が不正: '+esc(e.message)+'</span>'; return; }
     if(!Array.isArray(arr)){ E.innerHTML='<span style="color:#c0392b">配列（[...]）を貼ってください</span>'; return; }
-    const existing=new Set(qas.map(q=>(q.sourceTime||"")+"|"+(q.asker||"")));
-    let added=0,skip=0;
-    arr.forEach(o=>{ if(!o||typeof o!=="object")return; const key=(o.sourceTime||"")+"|"+(o.asker||"");
-      if(key!=="|"&&existing.has(key)){skip++;return;}
-      qas.push({id:uid(),category:o.category||"",qSummary:o.qSummary||"",qFull:o.qFull||"",answer:o.answer||"",asker:o.asker||"",sourceTime:o.sourceTime||"",checked:false}); existing.add(key); added++; });
-    await saveCloud(); closeSheet(); render(); alert("追加: "+added+"件 / 重複スキップ: "+skip+"件");
+    const keyOf=x=>(x.sourceTime||"")+"|"+(x.asker||"");
+    let added=0,updated=0;
+    arr.forEach(o=>{ if(!o||typeof o!=="object")return; const key=keyOf(o);
+      const idx = key!=="|" ? qas.findIndex(q=>keyOf(q)===key) : -1;
+      if(idx>=0){ const c=qas[idx]; qas[idx]={...c,
+          category:o.category||c.category, qSummary:o.qSummary||c.qSummary, qFull:o.qFull||c.qFull,
+          answer:o.answer||c.answer, aSummary:o.aSummary||c.aSummary, asker:o.asker||c.asker, sourceTime:o.sourceTime||c.sourceTime}; updated++; }
+      else { qas.push({id:uid(),category:o.category||"",qSummary:o.qSummary||"",qFull:o.qFull||"",answer:o.answer||"",aSummary:o.aSummary||"",asker:o.asker||"",sourceTime:o.sourceTime||"",checked:false}); added++; } });
+    await saveCloud(); closeSheet(); render(); alert("追加: "+added+"件 / 更新: "+updated+"件");
   };
   document.getElementById("q_icancel").onclick=closeSheet;
 }
