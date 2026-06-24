@@ -283,7 +283,8 @@ function importQA(){
           category:o.category||c.category, qSummary:o.qSummary||c.qSummary, qFull:o.qFull||c.qFull,
           answer:o.answer||c.answer, aSummary:o.aSummary||c.aSummary, asker:o.asker||c.asker, sourceTime:o.sourceTime||c.sourceTime}; updated++; }
       else { qas.push({id:uid(),category:o.category||"",qSummary:o.qSummary||"",qFull:o.qFull||"",answer:o.answer||"",aSummary:o.aSummary||"",asker:o.asker||"",sourceTime:o.sourceTime||"",checked:false}); added++; } });
-    await saveCloud(); closeSheet(); render(); alert("追加: "+added+"件 / 更新: "+updated+"件");
+    E.innerHTML='<span style="color:var(--good)">保存中…</span>'; await saveCloud(); closeSheet(); render();
+    const t=document.createElement('div'); t.textContent='Q&A 追加 '+added+'件 / 更新 '+updated+'件'; t.style.cssText='position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;z-index:99;font-size:13px;font-weight:700;box-shadow:var(--shadow)'; document.body.appendChild(t); setTimeout(()=>t.remove(),2500);
   };
   document.getElementById("q_icancel").onclick=closeSheet;
 }
