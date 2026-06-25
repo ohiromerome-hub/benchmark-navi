@@ -86,6 +86,13 @@
   .gate .big{font-size:18px;font-weight:800;margin-bottom:8px}
   .gate .small{font-size:13px;color:var(--muted);margin-bottom:22px;max-width:360px;margin-left:auto;margin-right:auto}
   .gbtn{appearance:none;border:0;background:var(--ink);color:#fff;font-weight:800;font-size:15px;padding:13px 22px;border-radius:12px;cursor:pointer;box-shadow:var(--shadow)}
+  .gbn{background:#eef6ff;border:1px solid #bcd9f5;border-radius:12px;padding:11px 13px;margin:0 2px 14px}
+  .gbn .gt{font-size:12px;font-weight:800;color:#1f6fc7;margin-bottom:3px}
+  .gbn .gv{font-size:13.5px;color:var(--ink);line-height:1.55}
+  .gbn .gv b{color:#c2410c}
+  .gbn .gp{font-size:11.5px;color:var(--muted);margin-top:4px}
+  .gbn .gs{font-size:11px;color:var(--muted);margin-top:5px}
+  .gbn0{background:#fbfcfe;border-color:var(--line);color:var(--muted);font-size:12px;line-height:1.5}
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -124,7 +131,7 @@ const configured = !String(firebaseConfig.apiKey).startsWith("PASTE_");
 let auth=null, db=null, user=null;
 if(configured){ const fapp=initializeApp(firebaseConfig); auth=getAuth(fapp); db=getFirestore(fapp); }
 
-let genres=[], benches=[], qas=[], steps={}, daily={}, view="genre";
+let genres=[], benches=[], qas=[], steps={}, daily={}, goal={}, view="genre";
 const $main=document.getElementById("main"), $auth=document.getElementById("auth"), $scrim=document.getElementById("scrim"), $sheet=document.getElementById("sheet");
 const nowY=new Date().getFullYear();
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -161,12 +168,12 @@ if(configured){
 function userRef(){ return doc(db,"users",user.uid); }
 async function loadCloud(){
   try{ const snap=await getDoc(userRef());
-    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; }
-    else { genres=[]; benches=[]; qas=[]; steps={}; daily={}; await saveCloud(); }
-  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; steps={}; daily={}; }
+    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; goal=d.goal||{}; }
+    else { genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; await saveCloud(); }
+  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; }
 }
 async function saveCloud(){ if(!user)return;
-  try{ await setDoc(userRef(),{genres,benches,qas,steps,daily,updatedAt:Date.now()},{merge:true}); }
+  try{ await setDoc(userRef(),{genres,benches,qas,steps,daily,goal,updatedAt:Date.now()},{merge:true}); }
   catch(e){ console.error(e); alert("保存でエラー: "+e.message); }
 }
 
@@ -174,6 +181,12 @@ function genreOK(g){const sy=num(g.startYear),mv=num(g.monthly);if(sy==null||mv=
 function monthsSince(d){if(!d)return null;const x=new Date(d);if(isNaN(x))return null;const n=new Date();return (n.getFullYear()-x.getFullYear())*12+(n.getMonth()-x.getMonth());}
 function benchOK(b){const s=num(b.subs);if(s==null||!b.open)return false;return s>1000;}
 function genreName(id){const g=genres.find(x=>x.id===id);return g?g.name:null;}
+function goalViews(){ var a=num(goal.amount), r=num(goal.rpm); if(a==null||r==null||r<=0) return null; return Math.round(a/r*1000); }
+function viewsLabel(v){ return v>=10000?(v/10000).toFixed(1)+'万回':Math.round(v).toLocaleString()+'回'; }
+function goalBannerHTML(){ var v=goalViews(); if(v==null) return '<div class="gbn gbn0">🎯 目標が未設定です。「🚀ステップ → 🎯目標・ペルソナ・ベンチ → 月の目標金額を決める」で設定できます。</div>'; var pd=Math.round(v/30); return '<div class="gbn"><div class="gt">🎯 あなたの目標</div><div class="gv">月収¥'+num(goal.amount).toLocaleString()+' → 目標再生数 <b>'+viewsLabel(v)+'/月</b>（1日 約'+pd.toLocaleString()+'回・RPM¥'+num(goal.rpm).toLocaleString()+'）</div>'+(goal.purpose?'<div class="gp">目的：'+esc(goal.purpose)+'</div>':'')+'<div class="gs">このジャンルでこの再生数を積めるか？を基準に選ぶ</div></div>'; }
+function goalOutCalc(a,r){ if(a==null||r==null||r<=0) return null; return Math.round(a/r*1000); }
+function goalOutHTML(v){ if(v==null) return '月収目標とRPMを入れると、必要な再生数が出ます'; var pd=Math.round(v/30); return '→ 目標再生数：<b>'+viewsLabel(v)+'/月</b>（1日 約'+pd.toLocaleString()+'回）'; }
+function goalFormHTML(){ var a=goal.amount||'', r=goal.rpm||'2000', p=goal.purpose||''; return '<div class="mgoal"><div class="gfh">🎯 あなたの目標（数値で記録）</div><div class="gfr"><label>月収目標</label><div class="gfi"><span>¥</span><input id="g_amount" type="text" inputmode="numeric" value="'+esc(a)+'" placeholder="500000"></div></div><div class="gfr"><label>RPM（1000再生あたり）</label><div class="gfi"><span>¥</span><input id="g_rpm" type="text" inputmode="numeric" value="'+esc(r)+'" placeholder="2000"></div></div><div class="gfr gfp"><label>目的（なぜこの金額？）</label><textarea id="g_purpose" placeholder="この金額を達成したら叶えたい人生（例：会社を辞めて時間と場所に縛られない暮らし）">'+esc(p)+'</textarea></div><div class="gfo" id="g_out">'+goalOutHTML(goalViews())+'</div></div>'; }
 
 function render(){ if(!user&&configured){renderGate();return;} if(view==="genre")renderGenre(); else if(view==="bench")renderBench(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
 function renderGate(){
@@ -183,7 +196,7 @@ function renderGate(){
 }
 
 function renderGenre(){
-  let h='<div class="view-title"><h2>稼げるジャンル</h2><button class="addbtn" id="addG">＋ ジャンル</button></div><div style="font-size:12px;color:var(--muted);margin:0 2px 12px">数年安定して伸びている「古くて大きいch」で、そのジャンルが稼げるかを見極める。</div>';
+  let h='<div class="view-title"><h2>稼げるジャンル</h2><button class="addbtn" id="addG">＋ ジャンル</button></div><div style="font-size:12px;color:var(--muted);margin:0 2px 12px">数年安定して伸びている「古くて大きいch」で、そのジャンルが稼げるかを見極める。</div>'+goalBannerHTML();
   if(genres.length===0){ h+='<div class="empty"><div class="big">まずジャンルを1つ登録</div><div class="small">vidIQで長期間安定して伸びているチャンネルを見つけ、代表例として登録しよう。</div></div>'; }
   else{ genres.forEach(g=>{ const ok=genreOK(g);
     const badge=ok===null?'<span class="badge b-warn">未入力</span>':ok?'<span class="badge b-good">◎ 稼げる</span>':'<span class="badge b-warn">要確認</span>';
@@ -196,7 +209,7 @@ function renderGenre(){
 function editGenre(id){
   const g=id?genres.find(x=>x.id===id):{};
   const f={name:g.name||"",rep:g.rep||"",url:g.url||"",subs:g.subs||"",startYear:g.startYear||"",monthly:g.monthly||"",memo:g.memo||""};
-  let h='<h3>'+(id?"ジャンルを編集":"ジャンルを追加")+'</h3>'+fld("ジャンル名","g_name",f.name,"text","例：focus music")+fld("代表チャンネル名","g_rep",f.rep,"text","vidIQで確認した代表例")+fld("代表チャンネルURL","g_url",f.url,"url","https://www.youtube.com/@...")+'<div class="two">'+fld("登録者数（万）","g_subs",f.subs,"number","例：132")+fld("開始年（西暦）","g_year",f.startYear,"number","例：2010")+'</div>'+fld("月間再生数（万）","g_monthly",f.monthly,"number","例：300（=300万）")+'<div class="live" id="g_live"></div>'+fld("結論メモ","g_memo",f.memo,"textarea","このジャンルにするか／気づき")+'<div class="acts">'+(id?'<button class="del" id="g_del">削除</button>':'')+'<button class="cancel" id="g_cancel">閉じる</button><button class="save" id="g_save">保存</button></div>';
+  let h='<h3>'+(id?"ジャンルを編集":"ジャンルを追加")+'</h3>'+goalBannerHTML()+fld("ジャンル名","g_name",f.name,"text","例：focus music")+fld("代表チャンネル名","g_rep",f.rep,"text","vidIQで確認した代表例")+fld("代表チャンネルURL","g_url",f.url,"url","https://www.youtube.com/@...")+'<div class="two">'+fld("登録者数（万）","g_subs",f.subs,"number","例：132")+fld("開始年（西暦）","g_year",f.startYear,"number","例：2010")+'</div>'+fld("月間再生数（万）","g_monthly",f.monthly,"number","例：300（=300万）")+'<div class="live" id="g_live"></div>'+fld("結論メモ","g_memo",f.memo,"textarea","このジャンルにするか／気づき")+'<div class="acts">'+(id?'<button class="del" id="g_del">削除</button>':'')+'<button class="cancel" id="g_cancel">閉じる</button><button class="save" id="g_save">保存</button></div>';
   openSheet(h);
   const liveCalc=()=>{const sy=num(val("g_year")),mv=num(val("g_monthly"));const L=document.getElementById("g_live");if(sy==null||mv==null){L.textContent="";return;}const ok=(nowY-sy>=2)&&(mv>=100);L.innerHTML=ok?'<span style="color:var(--good)">◎ 稼げる（継続'+(nowY-sy)+'年・月間'+mv+'万）</span>':'<span style="color:var(--warn)">要確認（基準：継続2年以上＋月間100万以上）</span>';};
   document.getElementById("g_year").oninput=liveCalc; document.getElementById("g_monthly").oninput=liveCalc; liveCalc();
@@ -470,6 +483,17 @@ function renderStep(){
    +'.manswrap .al{font-size:11px;font-weight:800;color:#1f9268;margin:0 0 3px}'
    +'.mans{width:100%;box-sizing:border-box;border:1px solid #b9e3d1;border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;line-height:1.6;background:#f2fbf7;color:var(--text);resize:vertical;min-height:48px}'
    +'.mans:focus{outline:none;border-color:#3ad29f;background:#fff}'
+   +'.mgoal{margin:4px 0 12px 26px;background:#fff7e9;border:1px solid #ffd98f;border-radius:11px;padding:11px 12px}'
+   +'.mgoal .gfh{font-size:12.5px;font-weight:800;color:#b8740a;margin-bottom:8px}'
+   +'.mgoal .gfr{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}'
+   +'.mgoal .gfr label{font-size:12px;color:var(--ink-soft);min-width:150px}'
+   +'.mgoal .gfi{display:flex;align-items:center;gap:3px;flex:1;min-width:120px}'
+   +'.mgoal .gfi span{font-size:13px;color:var(--muted)}'
+   +'.mgoal .gfi input{flex:1;width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;font-size:14px;background:#fff;color:var(--text)}'
+   +'.mgoal .gfp{flex-direction:column;align-items:stretch;gap:4px}'
+   +'.mgoal .gfp textarea{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;line-height:1.6;background:#fff;color:var(--text);resize:vertical;min-height:48px}'
+   +'.mgoal .gfo{font-size:13px;color:var(--ink);background:#fff;border-radius:8px;padding:8px 11px;margin-top:2px}'
+   +'.mgoal .gfo b{color:#c2410c;font-size:15px}'
    +'.mmemo{width:100%;box-sizing:border-box;margin-top:8px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;background:#fbfcfe;color:var(--text);resize:vertical;min-height:46px}'
    +'.mmlbl{font-size:11px;font-weight:700;color:var(--muted);margin:8px 2px 2px}'
    +'.st-aside{position:fixed;top:78px;left:max(16px,calc((100vw - 760px)/2 - 318px));width:292px;max-height:calc(100vh - 150px);overflow:auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 15px;box-shadow:var(--shadow);z-index:15}'
@@ -516,8 +540,9 @@ function renderStep(){
         h+='<label class="mchk" data-chk="'+s.id+'" data-ci="'+ci+'"><input type="checkbox" '+(on?'checked':'')+'><span class="'+(on?'dn':'')+'">'+esc(item)+'</span></label>';
         var src=steps[s.id]&&steps[s.id].chq&&steps[s.id].chq[ci];
         if(src) h+='<div class="msrc"><div class="sh">💬 元の発言（要約前）</div>'+esc(src).replace(/\n/g,'<br>')+'</div>';
-        var av=(steps[s.id]&&steps[s.id].ans&&steps[s.id].ans[ci])||'';
-        h+='<div class="manswrap"><div class="al">✍️ あなたの答え・考え</div><textarea class="mans" data-ans="'+s.id+'" data-ai="'+ci+'" placeholder="キラさんの説明をもとに、自分はどう考える？どう実行する？">'+esc(av)+'</textarea></div>';
+        if(s.id==='target'&&ci===0){ h+=goalFormHTML(); }
+        else { var av=(steps[s.id]&&steps[s.id].ans&&steps[s.id].ans[ci])||'';
+          h+='<div class="manswrap"><div class="al">✍️ あなたの答え・考え</div><textarea class="mans" data-ans="'+s.id+'" data-ai="'+ci+'" placeholder="キラさんの説明をもとに、自分はどう考える？どう実行する？">'+esc(av)+'</textarea></div>'; }
       });
       h+='<div class="mmlbl">📝 メモ</div><textarea class="mmemo" data-memo="'+s.id+'" placeholder="気づき・自分のチャンネルでの結果など">'+esc((steps[s.id]&&steps[s.id].memo)||'')+'</textarea>';
       h+='</div>';
@@ -533,7 +558,11 @@ function renderStep(){
   // memo (save on blur)
   $main.querySelectorAll('.mmemo').forEach(el=>{ el.onblur=async()=>{ var id=el.getAttribute('data-memo'); steps[id]=steps[id]||{}; if((steps[id].memo||'')===el.value)return; steps[id].memo=el.value; steps[id].open=true; await saveCloud(); }; });
   $main.querySelectorAll('.st-aside .sachk').forEach(el=>{ el.querySelector('input').onclick=(e)=>{ e.stopPropagation(); dailyToggle(+el.getAttribute('data-di'), e.target.checked); }; });
-  $main.querySelectorAll('.mans').forEach(el=>{ el.onblur=async()=>{ var id=el.getAttribute('data-ans'), ai=+el.getAttribute('data-ai'); var sd=STEP_DATA.find(x=>x.id===id); var n=sd?sd.ch.length:0; steps[id]=steps[id]||{}; var prev=steps[id].ans, arr=[]; for(var k=0;k<n;k++){ arr[k]=(prev&&prev[k])||''; } if(arr[ai]===el.value)return; arr[ai]=el.value; steps[id].ans=arr; steps[id].open=true; await saveCloud(); }; });
+  $main.querySelectorAll('.mans').forEach(el=>{ el.onblur=async()=>{ var id=el.getAttribute('data-ans'), ai=+el.getAttribute('data-ai'); var sd=STEP_DATA.find(x=>x.id===id); var n=sd?sd.ch.length:0; steps[id]=steps[id]||{}; var prev=steps[id].ans, arr=[]; for(var k=0;k<n;k++){ arr[k]=(prev&&prev[k])||''; } if(arr[ai]===el.value)return; arr[ai]=el.value; steps[id].open=true; steps[id].ans=arr; await saveCloud(); }; });
+  var ga=document.getElementById('g_amount'), gr=document.getElementById('g_rpm'), gp=document.getElementById('g_purpose');
+  if(ga&&gr&&gp){ var grecalc=function(){ var o=document.getElementById('g_out'); if(o) o.innerHTML=goalOutHTML(goalOutCalc(num(ga.value),num(gr.value))); };
+    var gsave=async function(){ if((goal.amount||'')===ga.value.trim()&&(goal.rpm||'')===gr.value.trim()&&(goal.purpose||'')===gp.value)return; goal.amount=ga.value.trim(); goal.rpm=gr.value.trim(); goal.purpose=gp.value; if(steps.target)steps.target.open=true; await saveCloud(); };
+    ga.oninput=grecalc; gr.oninput=grecalc; ga.onblur=gsave; gr.onblur=gsave; gp.onblur=gsave; }
 }
 /* 逐語(キラさんの言葉)をFirestoreにだけ投入する注入口。本文はコードに持たず、ログイン済み本人のusers/{uid}.steps[id].quoteへ書く */
 window.__importStepQuotes=async(map)=>{ if(!user)return"need login"; for(const k in map){ steps[k]=steps[k]||{}; steps[k].quote=map[k]; } await saveCloud(); window.__SQ="ok:"+Object.keys(map).length; if(view==="step")renderStep(); return window.__SQ; };
