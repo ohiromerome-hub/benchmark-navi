@@ -515,6 +515,7 @@ window.__importStepQuotes=async(map)=>{ if(!user)return"need login"; for(const k
 window.__resetDaily=async()=>{ if(!user)return"need login"; daily={}; await saveCloud(); if(view==="step")renderStep(); window.__RD="reset"; return"reset"; };
 window.__importStepChq=async(map)=>{ if(!user)return"need login"; for(const k in map){ steps[k]=steps[k]||{}; steps[k].chq=map[k]; } await saveCloud(); window.__SC="ok:"+Object.keys(map).length; if(view==="step")renderStep(); return window.__SC; };
 window.__setStep=async(id,obj)=>{ if(!user)return"need login"; steps[id]=Object.assign(steps[id]||{},obj); await saveCloud(); window.__SS="ok"; if(view==="step")renderStep(); return"ok"; };
+window.__importQAS=async(arr)=>{ if(!user)return"need login"; arr.forEach(n=>{ var i=qas.findIndex(x=>x.sourceTime===n.sourceTime&&x.asker===n.asker); if(i>=0) qas[i]=Object.assign({},qas[i],n); else qas.push(Object.assign({id:uid(),checked:false},n)); }); await saveCloud(); window.__IQ="ok:"+arr.length+" total:"+qas.length; if(view==="qa")renderQA(); return window.__IQ; };
 $scrim.onclick=e=>{if(e.target===$scrim)closeSheet();};
 document.querySelectorAll("#nav button").forEach(btn=>btn.onclick=()=>{ view=btn.getAttribute("data-v"); document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b===btn)); render(); });
 </script>
