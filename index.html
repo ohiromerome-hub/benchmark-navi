@@ -108,7 +108,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ▼▼▼ ここを自分のFirebaseの値に差し替える（手順.md参照）▼▼▼ */
@@ -138,9 +138,22 @@ function renderAuth(){
     document.getElementById("logout").onclick=()=>signOut(auth);
   }else{ $auth.innerHTML='<button class="pill" id="login">ログイン</button>'; document.getElementById("login").onclick=doLogin; }
 }
-function doLogin(){ signInWithPopup(auth,new GoogleAuthProvider()).catch(e=>alert("ログインに失敗しました: "+e.message)); }
+let signingIn=false;
+const isMobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+function doLogin(){
+  if(signingIn) return; signingIn=true;
+  const prov=new GoogleAuthProvider();
+  if(isMobile){ signingIn=false; signInWithRedirect(auth,prov).catch(e=>alert("ログインに失敗しました: "+e.message)); return; }
+  signInWithPopup(auth,prov).then(()=>{signingIn=false;}).catch(e=>{
+    signingIn=false; const c=(e&&e.code)||"";
+    if(c==="auth/cancelled-popup-request"||c==="auth/popup-closed-by-user"||c==="auth/user-cancelled") return;
+    if(c==="auth/popup-blocked"||c==="auth/operation-not-supported-in-this-environment"||c==="auth/internal-error"){ signInWithRedirect(auth,prov).catch(()=>{}); return; }
+    alert("ログインに失敗しました: "+e.message);
+  });
+}
 
 if(configured){
+  getRedirectResult(auth).catch(e=>{ const c=(e&&e.code)||""; if(c&&c!=="auth/no-auth-event") alert("ログインに失敗しました: "+e.message); });
   onAuthStateChanged(auth, async u=>{ user=u; renderAuth();
     if(u){ await loadCloud(); render(); } else { genres=[]; benches=[]; renderGate(); } });
 }else{ renderAuth(); renderGate(); }
