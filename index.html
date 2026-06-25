@@ -466,6 +466,10 @@ function renderStep(){
    +'.mchk .dn{color:var(--muted);text-decoration:line-through}'
    +'.msrc{margin:0 0 4px 26px;border-left:2px solid #cfe0ff;padding:3px 0 3px 11px;font-size:12px;color:var(--ink-soft);line-height:1.65}'
    +'.msrc .sh{font-size:10.5px;color:var(--muted);margin-bottom:2px}'
+   +'.manswrap{margin:4px 0 12px 26px}'
+   +'.manswrap .al{font-size:11px;font-weight:800;color:#1f9268;margin:0 0 3px}'
+   +'.mans{width:100%;box-sizing:border-box;border:1px solid #b9e3d1;border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;line-height:1.6;background:#f2fbf7;color:var(--text);resize:vertical;min-height:48px}'
+   +'.mans:focus{outline:none;border-color:#3ad29f;background:#fff}'
    +'.mmemo{width:100%;box-sizing:border-box;margin-top:8px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;background:#fbfcfe;color:var(--text);resize:vertical;min-height:46px}'
    +'.mmlbl{font-size:11px;font-weight:700;color:var(--muted);margin:8px 2px 2px}'
    +'.st-aside{position:fixed;top:78px;left:max(16px,calc((100vw - 760px)/2 - 318px));width:292px;max-height:calc(100vh - 150px);overflow:auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 15px;box-shadow:var(--shadow);z-index:15}'
@@ -512,6 +516,8 @@ function renderStep(){
         h+='<label class="mchk" data-chk="'+s.id+'" data-ci="'+ci+'"><input type="checkbox" '+(on?'checked':'')+'><span class="'+(on?'dn':'')+'">'+esc(item)+'</span></label>';
         var src=steps[s.id]&&steps[s.id].chq&&steps[s.id].chq[ci];
         if(src) h+='<div class="msrc"><div class="sh">💬 元の発言（要約前）</div>'+esc(src).replace(/\n/g,'<br>')+'</div>';
+        var av=(steps[s.id]&&steps[s.id].ans&&steps[s.id].ans[ci])||'';
+        h+='<div class="manswrap"><div class="al">✍️ あなたの答え・考え</div><textarea class="mans" data-ans="'+s.id+'" data-ai="'+ci+'" placeholder="キラさんの説明をもとに、自分はどう考える？どう実行する？">'+esc(av)+'</textarea></div>';
       });
       h+='<div class="mmlbl">📝 メモ</div><textarea class="mmemo" data-memo="'+s.id+'" placeholder="気づき・自分のチャンネルでの結果など">'+esc((steps[s.id]&&steps[s.id].memo)||'')+'</textarea>';
       h+='</div>';
@@ -527,6 +533,7 @@ function renderStep(){
   // memo (save on blur)
   $main.querySelectorAll('.mmemo').forEach(el=>{ el.onblur=async()=>{ var id=el.getAttribute('data-memo'); steps[id]=steps[id]||{}; if((steps[id].memo||'')===el.value)return; steps[id].memo=el.value; steps[id].open=true; await saveCloud(); }; });
   $main.querySelectorAll('.st-aside .sachk').forEach(el=>{ el.querySelector('input').onclick=(e)=>{ e.stopPropagation(); dailyToggle(+el.getAttribute('data-di'), e.target.checked); }; });
+  $main.querySelectorAll('.mans').forEach(el=>{ el.onblur=async()=>{ var id=el.getAttribute('data-ans'), ai=+el.getAttribute('data-ai'); var sd=STEP_DATA.find(x=>x.id===id); var n=sd?sd.ch.length:0; steps[id]=steps[id]||{}; var prev=steps[id].ans, arr=[]; for(var k=0;k<n;k++){ arr[k]=(prev&&prev[k])||''; } if(arr[ai]===el.value)return; arr[ai]=el.value; steps[id].ans=arr; steps[id].open=true; await saveCloud(); }; });
 }
 /* 逐語(キラさんの言葉)をFirestoreにだけ投入する注入口。本文はコードに持たず、ログイン済み本人のusers/{uid}.steps[id].quoteへ書く */
 window.__importStepQuotes=async(map)=>{ if(!user)return"need login"; for(const k in map){ steps[k]=steps[k]||{}; steps[k].quote=map[k]; } await saveCloud(); window.__SQ="ok:"+Object.keys(map).length; if(view==="step")renderStep(); return window.__SQ; };
