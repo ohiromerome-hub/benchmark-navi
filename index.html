@@ -423,6 +423,9 @@ function renderStep(){
    +'.mbody{margin:2px 0 0 6px;border-left:2px dashed var(--line);padding:10px 0 4px 14px}'
    +'.mk{font-size:13px;color:var(--ink-soft);line-height:1.7;background:#f7f9fc;border-radius:10px;padding:10px 12px;margin-bottom:8px}'
    +'.mk b{color:#3a6df0}'
+   +'.mq{font-size:12.5px;color:var(--ink-soft);line-height:1.7;background:#fff;border:1px solid #cfe0ff;border-radius:10px;padding:10px 12px;margin-bottom:8px}'
+   +'.mq .qh{font-size:12px;font-weight:800;color:#3a6df0;margin-bottom:3px}'
+   +'.mq .ql{font-size:10.5px;color:var(--muted);margin-top:6px}'
    +'.mvid{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:#c33;text-decoration:none;margin-bottom:10px}'
    +'.mchk{display:flex;align-items:flex-start;gap:9px;padding:7px 2px;cursor:pointer;font-size:13.5px;color:var(--text);line-height:1.5}'
    +'.mchk input{margin-top:2px;width:17px;height:17px;flex:0 0 auto;accent-color:#3ad29f}'
@@ -445,6 +448,8 @@ function renderStep(){
     if(open){
       h+='<div class="mbody">';
       h+='<div class="mk"><b>キラさんの要点</b><br>'+esc(s.k)+'</div>';
+      var qv=steps[s.id]&&steps[s.id].quote;
+      if(qv) h+='<div class="mq"><div class="qh">💬 キラさんの言葉（全文）</div>'+esc(qv).replace(/\n/g,'<br>')+'<div class="ql">🔒 Hiroka専用・このアプリ内だけに表示</div></div>';
       if(s.ts!=null) h+='<a class="mvid" href="'+STEP_VID+'&t='+s.ts+'s" target="_blank" rel="noopener">▶ 動画で見る（'+stMM(s.ts)+'）</a><br>';
       var c=stProg(s.id);
       s.ch.forEach((item,ci)=>{ var on=!!c[ci];
