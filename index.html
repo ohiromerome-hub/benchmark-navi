@@ -101,6 +101,7 @@
     <button data-v="bench"><span class="ic">▲</span><span class="lb">ベンチ先</span></button>
     <button data-v="map"><span class="ic">⛓</span><span class="lb">つながり</span></button>
     <button data-v="qa"><span class="ic">❓</span><span class="lb">Q&amp;A</span></button>
+    <button data-v="step"><span class="ic">🚀</span><span class="lb">ステップ</span></button>
   </nav>
 </div>
 <div class="scrim" id="scrim"><div class="sheet" id="sheet"></div></div>
@@ -123,7 +124,7 @@ const configured = !String(firebaseConfig.apiKey).startsWith("PASTE_");
 let auth=null, db=null, user=null;
 if(configured){ const fapp=initializeApp(firebaseConfig); auth=getAuth(fapp); db=getFirestore(fapp); }
 
-let genres=[], benches=[], qas=[], view="genre";
+let genres=[], benches=[], qas=[], steps={}, view="genre";
 const $main=document.getElementById("main"), $auth=document.getElementById("auth"), $scrim=document.getElementById("scrim"), $sheet=document.getElementById("sheet");
 const nowY=new Date().getFullYear();
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -147,12 +148,12 @@ if(configured){
 function userRef(){ return doc(db,"users",user.uid); }
 async function loadCloud(){
   try{ const snap=await getDoc(userRef());
-    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; }
-    else { genres=[]; benches=[]; qas=[]; await saveCloud(); }
-  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; }
+    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; }
+    else { genres=[]; benches=[]; qas=[]; steps={}; await saveCloud(); }
+  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; steps={}; }
 }
 async function saveCloud(){ if(!user)return;
-  try{ await setDoc(userRef(),{genres,benches,qas,updatedAt:Date.now()},{merge:true}); }
+  try{ await setDoc(userRef(),{genres,benches,qas,steps,updatedAt:Date.now()},{merge:true}); }
   catch(e){ console.error(e); alert("保存でエラー: "+e.message); }
 }
 
@@ -161,7 +162,7 @@ function monthsSince(d){if(!d)return null;const x=new Date(d);if(isNaN(x))return
 function benchOK(b){const s=num(b.subs);if(s==null||!b.open)return false;return s>1000;}
 function genreName(id){const g=genres.find(x=>x.id===id);return g?g.name:null;}
 
-function render(){ if(!user&&configured){renderGate();return;} if(view==="genre")renderGenre(); else if(view==="bench")renderBench(); else if(view==="qa")renderQA(); else renderMap(); }
+function render(){ if(!user&&configured){renderGate();return;} if(view==="genre")renderGenre(); else if(view==="bench")renderBench(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
 function renderGate(){
   if(!configured){ $main.innerHTML='<div class="gate"><div class="big">セットアップが必要です</div><div class="small">同梱の「セットアップ手順.md」に沿って、コード冒頭の firebaseConfig にあなたのFirebaseの値を貼ってください。</div></div>'; return; }
   $main.innerHTML='<div class="gate"><div class="big">ログインして始める</div><div class="small">Googleでログインすると、入力データがあなた専用に保存され、PC・スマホで同期されます。</div><button class="gbtn" id="gateLogin">Googleでログイン</button></div>';
@@ -368,6 +369,101 @@ function fld(label,id,v,type,ph){ if(type==="textarea") return '<div class="fld"
   return '<div class="fld"><label>'+label+'</label><input id="'+id+'" type="'+type+'" value="'+esc(v)+'" placeholder="'+esc(ph)+'"'+(type==="number"?' inputmode="numeric"':'')+'></div>'; }
 function openSheet(html){$sheet.innerHTML=html;$scrim.classList.add("show");}
 function closeSheet(){$scrim.classList.remove("show");$sheet.innerHTML="";}
+/* ===== ステップ（キラ式ロードマップ：BGMセミナー動画準拠） =====
+   公開リポジトリには「ステップ構造・やること・動画の該当時間リンク」だけを置く。
+   キラさんの逐語の発言（有料セミナー本文）は載せない。リンクから本人が動画で確認する。 */
+const STEP_VID="https://www.youtube.com/watch?v=iG3tYDu1_xI";
+const STEP_DATA=[
+ {id:"mind",ic:"🧠",t:"マインドセット",ts:395,
+  k:"最初の1年は伸びなくて当たり前。少しでも早く結果を出すコツは、正しい戦略で毎日淡々と改善し続けること。初期の数値は気にしない。",
+  ch:["1年は続ける覚悟を決める","初期（〜1000回）の数値は気にしないと決める","「作る→投稿→改善」を毎日まわすリズムを作る"]},
+ {id:"target",ic:"🎯",t:"目標・ペルソナ・ベンチ",ts:1183,
+  k:"目標金額から必要再生数を逆算し、届けたいペルソナを1人決める。今伸びてるチャンネルをベンチマークに選び、徹底的に寄せる（TTP）。バズは狙わず再生数を積み上げる。",
+  ch:["月の目標金額を決める","ペルソナ（誰向けBGMか）を1人決める","伸びてるベンチを3つ選ぶ→「ベンチ先」タブに登録","TTP対象（寄せる先）を1つ決める"]},
+ {id:"song",ic:"🎵",t:"曲づくり（SUNO）",ts:3364,
+  k:"SUNOでベンチに寄せた曲調を作る。プロンプトはAI（ChatGPT/Claude）に作らせ、1回で決めず2〜4回生成して良いものを選ぶ。自動化はものものさんのツールまで、規約は守る。",
+  ch:["SUNOでベンチに寄せた曲を作る","プロンプトはAIに作ってもらう","2〜4回生成して良いものを採用","著作権・規約を守る（BANを賭けない）"]},
+ {id:"video",ic:"🎬",t:"動画化",ts:null,
+  k:"完全な静止画はNG。画像はMidjourney等で用意し、Kling等で一部を動かす（雲・炎など動かしやすい所）。1回で決めず複数生成して良いものを採用。",
+  ch:["動画用の画像を用意する","一部を動かす（完全静止画は避ける）","動かしやすい箇所を試して把握する"]},
+ {id:"thumb",ic:"🖼",t:"サムネ・タイトル・概要欄",ts:2112,
+  k:"改善順は サムネ→タイトル→中身。サムネはクリック率（CTR）最優先でベンチに寄せる。タイトルは狙うキーワードを前半に入れ、クリック率と検索の両立を意識。概要欄はペルソナ刺さり＋KW。",
+  ch:["サムネはベンチに寄せる（CTR最優先）","タイトルは狙うKWを前半に入れる","概要欄はペルソナ刺さり＋KWでAI作成"]},
+ {id:"post",ic:"⚙️",t:"投稿・収益化設定",ts:1899,
+  k:"動画の長さとRPMの関係を意識し、収益化を最大化する3つの設定をする。毎日決まった時間に公開予約してリズムを作る。",
+  ch:["動画の長さを意識する（RPM）","収益化を最大化する3つの設定をする","毎日決まった時間に公開予約する"]},
+ {id:"flow",ic:"🔁",t:"流入・回遊を増やす",ts:2070,
+  k:"おすすめ・関連・検索の3つの流入経路を揃える。さらに再生リスト・ホーム画面・カード・終了画面でチャンネル内の回遊を増やし、再生数を伸ばす。",
+  ch:["3つの流入経路（おすすめ/関連/検索）を意識","再生リストを作る","ホーム画面・カード・終了画面を設定する"]},
+ {id:"improve",ic:"📈",t:"分析・改善",ts:2252,
+  k:"CTRと視聴維持率を見て改善する（改善順はサムネ→タイトル→中身）。リベの「直接聞ける環境」で伸びてる先輩との違いを知り、寄せて改善。初期の数値変動には一喜一憂しない。",
+  ch:["CTR・視聴維持率を確認する","改善順=サムネ→タイトル→中身で直す","伸びてる先輩との違いを知って寄せる"]}
+];
+function stMM(s){var m=Math.floor(s/60),x=s%60;return m+":"+(x<10?"0":"")+x;}
+function stProg(id){ var p=steps[id]||{}; return Array.isArray(p.c)?p.c:[]; }
+function stDoneN(s){ var c=stProg(s.id),n=0; for(var i=0;i<s.ch.length;i++) if(c[i])n++; return n; }
+function stComplete(s){ return stDoneN(s)===s.ch.length; }
+function renderStep(){
+  $main.innerHTML='<style>'
+   +'.stwrap{padding:4px 2px 8px}'
+   +'.sthd{font-size:20px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px;margin:2px 2px 4px}'
+   +'.stsub{font-size:12.5px;color:var(--muted);margin:0 2px 12px;line-height:1.5}'
+   +'.stbar{height:8px;border-radius:99px;background:#e9eef7;overflow:hidden;margin:0 2px 4px}'
+   +'.stbar>i{display:block;height:100%;background:linear-gradient(90deg,#5b8cff,#3ad29f);border-radius:99px;transition:width .3s}'
+   +'.stbtxt{font-size:11.5px;color:var(--muted);margin:0 2px 14px;font-weight:700}'
+   +'.mmbr{margin-left:20px;border-left:2px solid var(--line);padding-left:0}'
+   +'.mnode{position:relative;margin:0 0 8px}'
+   +'.mhead{position:relative;display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 13px;cursor:pointer;box-shadow:var(--shadow)}'
+   +'.mhead:before{content:"";position:absolute;left:-18px;top:50%;width:18px;height:2px;background:var(--line)}'
+   +'.mdot{flex:0 0 30px;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;background:#eef2fa;border:2px solid var(--line)}'
+   +'.mdot.part{border-color:#5b8cff}.mdot.done{background:#3ad29f;border-color:#3ad29f}'
+   +'.mtt{flex:1;font-size:14.5px;font-weight:800;color:var(--ink)}'
+   +'.mcnt{font-size:11px;font-weight:800;color:var(--muted);background:#f1f4fa;border-radius:8px;padding:2px 8px}'
+   +'.mcnt.ok{color:#159c73;background:#dff5ec}'
+   +'.mbody{margin:2px 0 0 6px;border-left:2px dashed var(--line);padding:10px 0 4px 14px}'
+   +'.mk{font-size:13px;color:var(--ink-soft);line-height:1.7;background:#f7f9fc;border-radius:10px;padding:10px 12px;margin-bottom:8px}'
+   +'.mk b{color:#3a6df0}'
+   +'.mvid{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:#c33;text-decoration:none;margin-bottom:10px}'
+   +'.mchk{display:flex;align-items:flex-start;gap:9px;padding:7px 2px;cursor:pointer;font-size:13.5px;color:var(--text);line-height:1.5}'
+   +'.mchk input{margin-top:2px;width:17px;height:17px;flex:0 0 auto;accent-color:#3ad29f}'
+   +'.mchk .dn{color:var(--muted);text-decoration:line-through}'
+   +'.mmemo{width:100%;box-sizing:border-box;margin-top:8px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;background:#fbfcfe;color:var(--text);resize:vertical;min-height:46px}'
+   +'.mmlbl{font-size:11px;font-weight:700;color:var(--muted);margin:8px 2px 2px}'
+   +'</style>';
+  var doneSteps=STEP_DATA.filter(stComplete).length, pct=Math.round(doneSteps/STEP_DATA.length*100);
+  var h='<div class="stwrap">';
+  h+='<div class="sthd">🚀 キラ式ロードマップ</div>';
+  h+='<div class="stsub">BGMで稼ぐ全体の流れを8ステップに。タップで「キラさんの要点・やること」を開けます。動画リンクから本人の説明をその場面で確認できます。</div>';
+  h+='<div class="stbar"><i style="width:'+pct+'%"></i></div>';
+  h+='<div class="stbtxt">'+doneSteps+' / '+STEP_DATA.length+' ステップ完了（'+pct+'%）</div>';
+  h+='<div class="mmbr">';
+  STEP_DATA.forEach((s,i)=>{
+    var dn=stDoneN(s),cmp=dn===s.ch.length,part=dn>0&&!cmp;
+    var open=steps[s.id]&&steps[s.id].open;
+    h+='<div class="mnode" data-i="'+i+'">';
+    h+='<div class="mhead" data-tog="'+s.id+'"><span class="mdot '+(cmp?'done':(part?'part':''))+'">'+(cmp?'✓':s.ic)+'</span><span class="mtt">'+esc(s.t)+'</span><span class="mcnt '+(cmp?'ok':'')+'">'+dn+'/'+s.ch.length+'</span></div>';
+    if(open){
+      h+='<div class="mbody">';
+      h+='<div class="mk"><b>キラさんの要点</b><br>'+esc(s.k)+'</div>';
+      if(s.ts!=null) h+='<a class="mvid" href="'+STEP_VID+'&t='+s.ts+'s" target="_blank" rel="noopener">▶ 動画で見る（'+stMM(s.ts)+'）</a><br>';
+      var c=stProg(s.id);
+      s.ch.forEach((item,ci)=>{ var on=!!c[ci];
+        h+='<label class="mchk" data-chk="'+s.id+'" data-ci="'+ci+'"><input type="checkbox" '+(on?'checked':'')+'><span class="'+(on?'dn':'')+'">'+esc(item)+'</span></label>';
+      });
+      h+='<div class="mmlbl">📝 メモ</div><textarea class="mmemo" data-memo="'+s.id+'" placeholder="気づき・自分のチャンネルでの結果など">'+esc((steps[s.id]&&steps[s.id].memo)||'')+'</textarea>';
+      h+='</div>';
+    }
+    h+='</div>';
+  });
+  h+='</div></div>';
+  $main.innerHTML+=h;
+  // toggle open/close
+  $main.querySelectorAll('.mhead').forEach(el=>el.onclick=()=>{ var id=el.getAttribute('data-tog'); steps[id]=steps[id]||{}; steps[id].open=!steps[id].open; renderStep(); });
+  // checkbox
+  $main.querySelectorAll('.mchk').forEach(el=>{ el.querySelector('input').onclick=async(e)=>{ e.stopPropagation(); var id=el.getAttribute('data-chk'),ci=+el.getAttribute('data-ci'); steps[id]=steps[id]||{}; var arr=Array.isArray(steps[id].c)?steps[id].c.slice():[]; arr[ci]=e.target.checked; steps[id].c=arr; steps[id].open=true; await saveCloud(); renderStep(); }; });
+  // memo (save on blur)
+  $main.querySelectorAll('.mmemo').forEach(el=>{ el.onblur=async()=>{ var id=el.getAttribute('data-memo'); steps[id]=steps[id]||{}; if((steps[id].memo||'')===el.value)return; steps[id].memo=el.value; steps[id].open=true; await saveCloud(); }; });
+}
 $scrim.onclick=e=>{if(e.target===$scrim)closeSheet();};
 document.querySelectorAll("#nav button").forEach(btn=>btn.onclick=()=>{ view=btn.getAttribute("data-v"); document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b===btn)); render(); });
 </script>
