@@ -236,18 +236,94 @@ function renderMap(){
   $main.querySelectorAll(".url").forEach(a=>a.onclick=e=>e.stopPropagation());
 }
 
+const QA_FLOWS=['ベンチマーク','曲（SUNO）','動画の作り方','サムネ・タイトル・概要欄','運用・数値の改善','チャンネル設計','収益アップ','効率化・始め方'];
+const QA_FICO={'ベンチマーク':'🎯','曲（SUNO）':'🎵','動画の作り方':'🎬','サムネ・タイトル・概要欄':'🖼','運用・数値の改善':'📈','チャンネル設計':'🔁','収益アップ':'💰','効率化・始め方':'🛠'};
+const QA_MAP={
+'2026-05-13 06:37':['サムネ・タイトル・概要欄','ハッシュタグ,SEO'],'2026-05-13 06:50':['効率化・始め方','リベ活用'],'2026-05-14 10:14':['収益アップ','収益化,マインド,BAN'],'2026-05-15 09:04':['運用・数値の改善','初動,SUNO'],'2026-05-15 11:38':['運用・数値の改善','アップロード,トラブル'],'2026-05-15 13:03':['効率化・始め方','多言語,ツール'],'2026-05-16 06:36':['曲（SUNO）','SUNO'],'2026-05-17 09:02':['運用・数値の改善','分析,回復'],'2026-05-17 16:13':['効率化・始め方','PC,データ'],'2026-05-18 06:35':['動画の作り方','YouTube設定,動画形式'],
+'2026-05-19 13:03':['ベンチマーク','ベンチマーク'],'2026-05-19 13:42':['動画の作り方','動画形式'],'2026-05-20 08:55':['動画の作り方','Kling,動画制作'],'2026-05-20 09:41':['サムネ・タイトル・概要欄','サムネ'],'2026-05-20 11:15':['サムネ・タイトル・概要欄','サムネ,設計'],'2026-05-20 12:19':['サムネ・タイトル・概要欄','YouTube設定,終了画面'],'2026-05-20 12:53':['動画の作り方','動画形式'],'2026-05-21 11:00':['ベンチマーク','ベンチマーク'],'2026-05-21 12:30':['運用・数値の改善','投稿,初動'],'2026-05-21 17:21':['動画の作り方','動画形式,ベンチマーク'],'2026-05-22 05:11':['チャンネル設計','チャンネル設計,作り直し'],
+'2026-05-23 17:46':['チャンネル設計','チャンネル設計,作り直し,TTP'],'2026-05-24 08:02':['ベンチマーク','ベンチマーク,著作権'],'2026-05-24 08:47':['収益アップ','収益化,動画形式'],'2026-05-25 16:34':['動画の作り方','動画形式'],'2026-05-26 09:54':['動画の作り方','Kling,動画制作'],'2026-05-26 11:39':['チャンネル設計','戦略,ライブ'],'2026-05-27 11:18':['効率化・始め方','自動化'],'2026-05-27 12:30':['動画の作り方','Kling'],'2026-05-28 17:33':['サムネ・タイトル・概要欄','SEO,タイトル'],'2026-05-28 19:30':['運用・数値の改善','インプレ'],'2026-05-31 07:53':['効率化・始め方','自動化,規約'],
+'2026-06-01 10:49':['効率化・始め方','PC,データ'],'2026-06-02 14:23':['運用・数値の改善','既存動画'],'2026-06-03 09:16':['運用・数値の改善','分析,回復'],'2026-06-03 13:31':['運用・数値の改善','初動,サムネ'],'2026-06-05 10:54':['ベンチマーク','ベンチマーク,リサーチ'],'2026-06-06 18:55':['動画の作り方','Kling,動画制作'],'2026-06-13 09:19':['曲（SUNO）','SUNO'],'2026-06-15 09:06':['曲（SUNO）','SUNO'],'2026-06-17 10:22':['曲（SUNO）','SUNO,規約'],'2026-06-18 10:33':['効率化・始め方','マインド,初心者'],'2026-06-19 15:15':['曲（SUNO）','著作権,ContentID'],'2026-06-20 16:35':['動画の作り方','ツール'],'2026-06-24 12:01':['動画の作り方','動画形式']
+};
+const QA_SYN=[['撤退','やめる','辞める','やめ','閉じる'],['作り直し','作り直す','新設','リセット','やり直し','再スタート'],['再開','放置','復活'],['サムネ','サムネイル'],['チャンネル','ch'],['収益化','収益','稼ぐ','お金','マネタイズ','rpm'],['著作権','contentid','content id','異議申し立て','コピー','パクリ','盗用','権利'],['曲','音楽','bgm','suno','作曲'],['動画','映像','kling','ループ','静止画','スペクトラム'],['規約','違反','ban','凍結'],['初心者','始め方','はじめて','スタート'],['伸びない','伸び悩み','再生されない','再生','インプレ','インプレッション','視聴'],['多言語','翻訳','英語'],['タイトル','概要欄','seo','検索','キーワード'],['ベンチマーク','ベンチ','お手本','ttp','真似'],['不安','こわい','怖い','リスク','マインド']];
+const QA_PR=['今伸びてるベンチに徹底的に寄せる（TTP）','改善順は サムネ→タイトル→中身','初期の数値は気にしない（1000回まで）','コントロールできることに集中','規約は守る（BANを賭けない）','完全静止画は避ける／日々改善'];
+let qaState={q:'',fz:false,group:'flow'};
+function qaFlowOf(q){ return q.flow || (QA_MAP[q.sourceTime]&&QA_MAP[q.sourceTime][0]) || '効率化・始め方'; }
+function qaTagsOf(q){ if(q.tags&&q.tags.length) return q.tags; const m=QA_MAP[q.sourceTime]; return m?m[1].split(','):[]; }
+function qaExpand(tok){ const s={}; s[tok]=1; QA_SYN.forEach(g=>{ if(g.some(w=>w.indexOf(tok)>=0||tok.indexOf(w)>=0)) g.forEach(w=>s[w]=1); }); return Object.keys(s); }
+function qaParse(query){ return query.toLowerCase().split(/\s+or\s+|\s*\|\s*/).map(g=>g.trim().split(/\s+/).filter(Boolean)).filter(g=>g.length); }
+function qaMatch(text,groups,fz){ text=text.toLowerCase(); return groups.some(ts=>ts.every(t=>{ const vs=fz?qaExpand(t):[t]; return vs.some(v=>text.indexOf(v)>=0); })); }
+function qaTermsOf(groups,fz){ const s={}; groups.forEach(g=>g.forEach(t=>(fz?qaExpand(t):[t]).forEach(v=>{if(v)s[v]=1;}))); return Object.keys(s).sort((a,b)=>b.length-a.length); }
+function qaExtra(groups,fz){ if(!fz)return[]; const ty={},al={}; groups.forEach(g=>g.forEach(t=>{ty[t]=1;qaExpand(t).forEach(v=>al[v]=1);})); return Object.keys(al).filter(v=>!ty[v]); }
+function qaHi(str,terms){ let s=esc(str); if(!terms||!terms.length) return s; terms.forEach(t=>{ if(!t)return; try{ const re=new RegExp('('+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'); s=s.replace(re,'$1'); }catch(e){} }); return s.replace(//g,'<mark class="qmk">').replace(//g,'</mark>'); }
+function qaCard(q,terms){
+  const fl=qaFlowOf(q), tags=qaTagsOf(q);
+  const badge=q.checked?'<span class="badge b-good">✓</span>':'<span class="badge b-warn">未</span>';
+  const qsum=qaHi(q.qSummary||'(要約なし)',terms).replace(/([。？])(?=.)/g,'$1<br>');
+  let h='<div class="card" data-eq="'+q.id+'" style="cursor:pointer">';
+  h+='<div class="qa-head"><div class="row1"><div><span class="tag">'+esc(fl)+'</span><p class="name" style="margin-top:6px"><span style="color:var(--link);font-weight:800">Q. </span>'+qsum+'</p></div>'+badge+'</div>';
+  if(q.aSummary) h+='<div class="memo" style="color:var(--text);font-size:13px;line-height:1.65;margin-top:8px"><span style="color:var(--good);font-weight:800">A. </span>'+qaHi(q.aSummary,terms)+'</div>';
+  h+='<div style="display:flex;align-items:center;gap:6px;margin-top:9px;flex-wrap:wrap">'+tags.map(t=>'<span class="tg2">'+qaHi(t,terms)+'</span>').join('')+'<span style="flex:1"></span><span class="qa-ind" style="font-size:12px;color:var(--link);font-weight:700">全文 ▾</span></div></div>';
+  h+='<div class="qa-full" style="display:none">';
+  if(q.qFull) h+='<div style="border-top:1px solid var(--line);margin-top:10px;padding-top:10px"><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:3px">質問 全文</div><div style="font-size:13px;line-height:1.7">'+qaHi(q.qFull,terms)+'</div></div>';
+  if(q.answer) h+='<div style="margin-top:10px"><div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:3px">回答 全文（キラさん）</div><div style="font-size:13px;line-height:1.75">'+qaHi(q.answer,terms)+'</div></div>';
+  h+='<div style="display:flex;gap:8px;margin-top:12px"><button class="qa-edit qa-btn" data-id="'+q.id+'">編集</button><button class="qa-check qa-btn" data-id="'+q.id+'" style="'+(q.checked?'color:var(--good);border-color:var(--good)':'')+'">'+(q.checked?'✓ 確認済み':'確認済みにする')+'</button></div>';
+  h+='</div></div>';
+  return h;
+}
 function renderQA(){
-  const list=qas.slice().sort((a,b)=>String(a.sourceTime||"").localeCompare(String(b.sourceTime||"")));
-  const unchecked=list.filter(q=>!q.checked).length;
-  let h='<div class="view-title"><h2>Q&amp;A</h2><div><button class="addbtn" id="impQA" style="background:#eef1f6;color:var(--ink-soft);margin-right:6px">まとめて追加</button><button class="addbtn" id="addQA">＋ Q&amp;A</button></div></div><div style="font-size:12px;color:var(--muted);margin:0 2px 12px">キラさん（AI×BGM×YouTube）のQ&amp;A。質問は要約＋全文を保存。要約が適切か見比べてチェックできます。</div>';
-  if(list.length){ h+='<div class="sumbar"><div class="s"><div class="n">'+list.length+'</div><div class="l">Q&amp;A件数</div></div><div class="s"><div class="n" style="color:'+(unchecked>0?"var(--warn)":"var(--good)")+'">'+unchecked+'</div><div class="l">未チェック</div></div></div>'; }
-  if(list.length===0){ h+='<div class="empty"><div class="big">まだQ&amp;Aがありません</div><div class="small">「まとめて追加」で抽出したQ&amp;Aを一括インポートするか、「＋ Q&amp;A」で1件ずつ追加できます。</div></div>'; }
-  else{ list.forEach(q=>{ const badge=q.checked?'<span class="badge b-good">✓ 確認済み</span>':'<span class="badge b-warn">未チェック</span>';
-    h+='<div class="card tap" data-eq="'+q.id+'"><div class="row1"><div>'+(q.category?'<span class="tag">'+esc(q.category)+'</span>':'')+'<p class="name" style="margin-top:6px"><span style="color:var(--link);font-weight:800">Q. </span>'+esc(q.qSummary||"(要約なし)").replace(/([。？])(?=.)/g,'$1<br>')+'</p></div>'+badge+'</div>'+(q.aSummary?'<div class="memo" style="color:var(--text);font-size:13px;line-height:1.65;margin-top:8px"><span style="color:var(--good);font-weight:800">A. </span>'+esc(q.aSummary)+'</div>':'')+'<div class="meta"><span class="m">日時<b>'+esc(String(q.sourceTime||"–").slice(0,10))+'</b></span></div></div>'; }); }
-  $main.innerHTML=h;
-  document.getElementById("addQA").onclick=()=>editQA(null);
-  document.getElementById("impQA").onclick=importQA;
-  $main.querySelectorAll("[data-eq]").forEach(el=>el.onclick=()=>editQA(el.getAttribute("data-eq")));
+  $main.innerHTML='<style>.qmk{background:#fbe9c0;border-radius:2px}.tg2{font-size:11px;color:var(--ink-soft);background:#e9eef7;border-radius:6px;padding:2px 7px}.pr2{font-size:12px;background:#fff;color:var(--ink-soft);border:1px solid var(--line);border-radius:8px;padding:3px 9px}.gb2{font-size:12px;padding:4px 11px;border:1px solid var(--line);border-radius:8px;background:transparent;cursor:pointer;color:var(--text)}#qa_q{border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:inherit;font-size:15px;background:#fbfcfe;color:var(--text)}.qa-btn{flex:1;border:1px solid var(--line);border-radius:9px;padding:9px;font:inherit;font-weight:700;font-size:13px;cursor:pointer;background:#fff;color:var(--text)}</style>'
+    +'<div class="view-title"><h2>Q&amp;A</h2><div><button class="addbtn" id="impQA" style="background:#eef1f6;color:var(--ink-soft);margin-right:6px">まとめて追加</button><button class="addbtn" id="addQA">＋</button></div></div>'
+    +'<input id="qa_q" type="text" placeholder="疑問を検索（例：作り直し／やめる／サムネ OR 収益化）" style="width:100%;box-sizing:border-box">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 2px 12px;flex-wrap:wrap"><span style="font-size:11px;color:var(--muted)">スペース＝and ／ OR・| ＝or</span><label style="font-size:12px;display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="qa_fz" style="width:auto"> もしかして検索</label></div>'
+    +'<div id="qa_pr" style="background:#eef1f6;border-radius:12px;padding:11px 13px;margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:7px">⭐ キラさんの大原則</div><div style="display:flex;flex-wrap:wrap;gap:6px">'+QA_PR.map(p=>'<span class="pr2">'+esc(p)+'</span>').join('')+'</div></div>'
+    +'<div id="qa_bb" style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;color:var(--muted)"><span>ブラウズ：</span><button class="gb2" data-g="flow">制作の流れ</button><button class="gb2" data-g="tag">タグ</button></div>'
+    +'<div id="qa_res"></div>';
+  const Q=document.getElementById('qa_q'), FZ=document.getElementById('qa_fz');
+  Q.value=qaState.q; FZ.checked=qaState.fz;
+  Q.oninput=()=>{ qaState.q=Q.value; qaUpdate(); };
+  FZ.onchange=()=>{ qaState.fz=FZ.checked; qaUpdate(); };
+  document.getElementById('addQA').onclick=()=>editQA(null);
+  document.getElementById('impQA').onclick=importQA;
+  $main.querySelectorAll('#qa_bb .gb2').forEach(b=>b.onclick=()=>{ qaState.group=b.getAttribute('data-g'); qaUpdate(); });
+  const R=document.getElementById('qa_res');
+  R.onclick=(e)=>{
+    const ed=e.target.closest('.qa-edit'); if(ed){ e.stopPropagation(); editQA(ed.getAttribute('data-id')); return; }
+    const ck=e.target.closest('.qa-check'); if(ck){ e.stopPropagation(); const q=qas.find(x=>x.id===ck.getAttribute('data-id')); if(q){ q.checked=!q.checked; saveCloud(); qaUpdate(); } return; }
+    const jp=e.target.closest('.qa-jump'); if(jp){ const sec=document.getElementById('qa-sec-'+jp.getAttribute('data-j')); if(sec) sec.scrollIntoView({behavior:'smooth',block:'start'}); return; }
+    const tg=e.target.closest('.qa-tagbtn'); if(tg){ Q.value=tg.getAttribute('data-t'); qaState.q=Q.value; qaUpdate(); return; }
+    const hd=e.target.closest('.qa-head'); if(hd){ const card=hd.closest('.card'); const full=card.querySelector('.qa-full'); const ind=card.querySelector('.qa-ind'); const open=full.style.display!=='none'; full.style.display=open?'none':'block'; if(ind) ind.innerHTML=open?'全文 ▾':'閉じる ▴'; }
+  };
+  qaUpdate();
+}
+function qaUpdate(){
+  const R=document.getElementById('qa_res'); if(!R)return;
+  const pr=document.getElementById('qa_pr'), bb=document.getElementById('qa_bb');
+  document.querySelectorAll('#qa_bb .gb2').forEach(b=>b.style.background=(b.getAttribute('data-g')===qaState.group)?'#dde3ec':'transparent');
+  const raw=(qaState.q||'').trim();
+  if(qas.length===0){ pr.style.display='none'; bb.style.display='none'; R.innerHTML='<div class="empty"><div class="big">まだQ&amp;Aがありません</div><div class="small">「まとめて追加」で一括インポートできます。</div></div>'; return; }
+  if(raw){
+    pr.style.display='none'; bb.style.display='none';
+    const groups=qaParse(raw), terms=qaTermsOf(groups,qaState.fz);
+    const hits=qas.filter(q=>qaMatch([q.qSummary,q.qFull,q.answer,q.aSummary,q.category,qaFlowOf(q),qaTagsOf(q).join(' '),q.asker].join(' '),groups,qaState.fz));
+    const mode=groups.length>1?'OR':((groups[0]&&groups[0].length>1)?'AND':''), ex=qaExtra(groups,qaState.fz);
+    let h='<div style="font-size:13px;color:var(--muted);margin:0 0 4px"><b style="color:var(--text)">'+hits.length+'件</b> ヒット'+(mode?' <span class="tg2">'+mode+'</span>':'')+'</div>';
+    if(ex.length) h+='<div style="font-size:11px;color:var(--muted);margin:0 0 8px">💡 もしかして：「'+ex.slice(0,6).map(esc).join('」「')+'」も含む</div>';
+    h+= hits.length? hits.map(q=>qaCard(q,terms)).join('') : '<div style="font-size:13px;color:var(--muted);padding:8px 2px">該当なし。語を減らすかORで広げてみて</div>';
+    R.innerHTML=h; return;
+  }
+  pr.style.display='block'; bb.style.display='flex';
+  if(qaState.group==='tag'){
+    const tset={}; qas.forEach(q=>qaTagsOf(q).forEach(t=>{tset[t]=(tset[t]||0)+1;}));
+    const keys=Object.keys(tset).sort((a,b)=>tset[b]-tset[a]);
+    R.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">'+keys.map(t=>'<button class="qa-tagbtn" data-t="'+esc(t)+'" style="font-size:12px;padding:5px 11px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;color:var(--text)">'+esc(t)+' <span style="color:var(--muted)">'+tset[t]+'</span></button>').join('')+'</div><div style="font-size:12px;color:var(--muted)">タグをタップで絞り込み</div>';
+    return;
+  }
+  let btns='', secs='';
+  QA_FLOWS.forEach((k,i)=>{ const list=qas.filter(q=>qaFlowOf(q)===k); if(!list.length)return;
+    btns+='<button class="qa-jump" data-j="'+i+'" style="font-size:12px;padding:5px 10px;border:1px solid var(--line);border-radius:8px;background:#eef1f6;cursor:pointer;margin:0 6px 6px 0;color:var(--text)">'+QA_FICO[k]+' '+esc(k)+' <span style="color:var(--muted)">'+list.length+'</span></button>';
+    secs+='<div id="qa-sec-'+i+'"><div style="font-weight:800;font-size:14px;margin:14px 0 8px;display:flex;align-items:center;gap:6px">'+QA_FICO[k]+' '+esc(k)+' <span style="font-size:12px;color:var(--muted);font-weight:400">'+list.length+'件</span></div>'+list.map(q=>qaCard(q,[])).join('')+'</div>';
+  });
+  R.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:8px">大項目をタップ → 該当箇所へジャンプ</div><div style="display:flex;flex-wrap:wrap;margin-bottom:6px">'+btns+'</div>'+secs;
 }
 function editQA(id){
   const q=id?qas.find(x=>x.id===id):{};
