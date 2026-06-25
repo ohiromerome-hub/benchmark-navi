@@ -469,6 +469,8 @@ function renderStep(){
   // memo (save on blur)
   $main.querySelectorAll('.mmemo').forEach(el=>{ el.onblur=async()=>{ var id=el.getAttribute('data-memo'); steps[id]=steps[id]||{}; if((steps[id].memo||'')===el.value)return; steps[id].memo=el.value; steps[id].open=true; await saveCloud(); }; });
 }
+/* 逐語(キラさんの言葉)をFirestoreにだけ投入する注入口。本文はコードに持たず、ログイン済み本人のusers/{uid}.steps[id].quoteへ書く */
+window.__importStepQuotes=async(map)=>{ if(!user)return"need login"; for(const k in map){ steps[k]=steps[k]||{}; steps[k].quote=map[k]; } await saveCloud(); window.__SQ="ok:"+Object.keys(map).length; if(view==="step")renderStep(); return window.__SQ; };
 $scrim.onclick=e=>{if(e.target===$scrim)closeSheet();};
 document.querySelectorAll("#nav button").forEach(btn=>btn.onclick=()=>{ view=btn.getAttribute("data-v"); document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b===btn)); render(); });
 </script>
