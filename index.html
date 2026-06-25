@@ -97,11 +97,11 @@
   </header>
   <main id="main"><div class="loading">読み込み中…</div></main>
   <nav id="nav">
+    <button data-v="step"><span class="ic">🚀</span><span class="lb">ステップ</span></button>
     <button data-v="genre" class="on"><span class="ic">◎</span><span class="lb">ジャンル</span></button>
     <button data-v="bench"><span class="ic">▲</span><span class="lb">ベンチ先</span></button>
     <button data-v="map"><span class="ic">⛓</span><span class="lb">つながり</span></button>
     <button data-v="qa"><span class="ic">❓</span><span class="lb">Q&amp;A</span></button>
-    <button data-v="step"><span class="ic">🚀</span><span class="lb">ステップ</span></button>
   </nav>
 </div>
 <div class="scrim" id="scrim"><div class="sheet" id="sheet"></div></div>
@@ -419,6 +419,8 @@ function dailyAside(){ var st=dailyNorm();
   h+='<div class="saprog">今日 '+st.doneN+' / '+DAILY.length+'</div>';
   DAILY.forEach((it,i)=>{ var on=!!(daily.c&&daily.c[i]); h+='<label class="sachk" data-di="'+i+'"><input type="checkbox" '+(on?"checked":"")+'><span class="'+(on?"dn":"")+'">'+esc(it)+'</span></label>'; });
   h+='<div class="sadone" style="'+(st.all?"":"display:none")+'">✅ 今日のリズム完了！えらい！</div>';
+  var md=STEP_DATA.find(s=>s.id==="mind");
+  if(md){ h+='<div class="samind"><div class="smh">🧠 毎日、心に刻む</div>'+md.ch.map(x=>'<div class="smi">'+esc(x)+'</div>').join('')+'</div>'; }
   h+='</div>'; return h; }
 function renderStep(){
   $main.innerHTML='<style>'
@@ -463,6 +465,9 @@ function renderStep(){
    +'.st-aside .sachk input{margin-top:1px;width:17px;height:17px;flex:0 0 auto;accent-color:#3ad29f}'
    +'.st-aside .sachk .dn{color:var(--muted);text-decoration:line-through}'
    +'.st-aside .sadone{margin-top:10px;font-size:12px;font-weight:700;color:#159c73;background:#dff5ec;border-radius:9px;padding:8px 10px;text-align:center}'
+   +'.st-aside .samind{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}'
+   +'.st-aside .samind .smh{font-size:12.5px;font-weight:800;color:#7a52c4;margin-bottom:7px}'
+   +'.st-aside .samind .smi{font-size:12.5px;color:var(--ink-soft);line-height:1.5;background:#f6f2fc;border-left:3px solid #c9b6f0;border-radius:0 7px 7px 0;padding:7px 10px;margin-bottom:6px}'
    +'@media(max-width:1119px){.st-aside{position:static;width:auto;max-height:none;margin:0 2px 14px;box-shadow:none}}'
    +'</style>';
   var doneSteps=STEP_DATA.filter(stComplete).length, pct=Math.round(doneSteps/STEP_DATA.length*100);
