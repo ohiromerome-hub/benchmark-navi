@@ -375,6 +375,8 @@ function closeSheet(){$scrim.classList.remove("show");$sheet.innerHTML="";}
 const STEP_VID="https://www.youtube.com/watch?v=iG3tYDu1_xI";
 const STEP_DATA=[
  {id:"mind",ic:"🧠",t:"マインドセット",ts:395,
+  whyT:"なぜAI×BGMで月収200万円を狙えるのか",whyTs:901,
+  whyK:"理由は5つ。①作業時間が圧倒的に少ない（顔出し・撮影・台本すべて不要／1〜2時間で1本も可能）②自分の都合で作業できる（早朝・深夜・隙間でOK）③言語に依存せず世界中に届けられる④広告単価の高い国を狙える（米国は日本の3〜5倍）⑤動画が資産として積み上がりやすい（流行り廃りのないジャンルは長期間再生される）。",
   k:"最初の1年は伸びなくて当たり前。少しでも早く結果を出すコツは、正しい戦略で毎日淡々と改善し続けること。初期の数値は気にしない。",
   ch:["1年は続ける覚悟を決める","初期（〜1000回）の数値は気にしないと決める","「作る→投稿→改善」を毎日まわすリズムを作る"]},
  {id:"target",ic:"🎯",t:"目標・ペルソナ・ベンチ",ts:1183,
@@ -438,6 +440,8 @@ function renderStep(){
    +'.mbody{margin:2px 0 0 6px;border-left:2px dashed var(--line);padding:10px 0 4px 14px}'
    +'.mk{font-size:13px;color:var(--ink-soft);line-height:1.7;background:#f7f9fc;border-radius:10px;padding:10px 12px;margin-bottom:8px}'
    +'.mk b{color:#3a6df0}'
+   +'.mwhy{font-size:13px;color:var(--ink-soft);line-height:1.75;background:#fff7e9;border:1px solid #ffd98f;border-radius:10px;padding:10px 12px;margin-bottom:8px}'
+   +'.mwhy .wh{font-size:12.5px;font-weight:800;color:#b8740a;margin-bottom:3px}'
    +'.mq{font-size:12.5px;color:var(--ink-soft);line-height:1.7;background:#fff;border:1px solid #cfe0ff;border-radius:10px;padding:10px 12px;margin-bottom:8px}'
    +'.mq .qh{font-size:12px;font-weight:800;color:#3a6df0;margin-bottom:3px}'
    +'.mq .ql{font-size:10.5px;color:var(--muted);margin-top:6px}'
@@ -476,6 +480,11 @@ function renderStep(){
     h+='<div class="mhead" data-tog="'+s.id+'"><span class="mdot '+(cmp?'done':(part?'part':''))+'">'+(cmp?'✓':s.ic)+'</span><span class="mtt">'+esc(s.t)+'</span><span class="mcnt '+(cmp?'ok':'')+'">'+dn+'/'+s.ch.length+'</span></div>';
     if(open){
       h+='<div class="mbody">';
+      if(s.whyT){ h+='<div class="mwhy"><div class="wh">💡 '+esc(s.whyT)+'</div>'+esc(s.whyK)+'</div>';
+        var wv=steps[s.id]&&steps[s.id].why;
+        if(wv) h+='<div class="mq"><div class="qh">💬 元の発言（要約前）</div>'+esc(wv).replace(/\n/g,'<br>')+'<div class="ql">🔒 Hiroka専用・このアプリ内だけに表示</div></div>';
+        if(s.whyTs!=null) h+='<a class="mvid" href="'+STEP_VID+'&t='+s.whyTs+'s" target="_blank" rel="noopener">▶ 動画で見る（'+stMM(s.whyTs)+'）</a><br>';
+      }
       h+='<div class="mk"><b>キラさんの要点</b><br>'+esc(s.k)+'</div>';
       var qv=steps[s.id]&&steps[s.id].quote;
       if(qv) h+='<div class="mq"><div class="qh">💬 キラさんの言葉（全文）</div>'+esc(qv).replace(/\n/g,'<br>')+'<div class="ql">🔒 Hiroka専用・このアプリ内だけに表示</div></div>';
@@ -505,6 +514,7 @@ function renderStep(){
 window.__importStepQuotes=async(map)=>{ if(!user)return"need login"; for(const k in map){ steps[k]=steps[k]||{}; steps[k].quote=map[k]; } await saveCloud(); window.__SQ="ok:"+Object.keys(map).length; if(view==="step")renderStep(); return window.__SQ; };
 window.__resetDaily=async()=>{ if(!user)return"need login"; daily={}; await saveCloud(); if(view==="step")renderStep(); window.__RD="reset"; return"reset"; };
 window.__importStepChq=async(map)=>{ if(!user)return"need login"; for(const k in map){ steps[k]=steps[k]||{}; steps[k].chq=map[k]; } await saveCloud(); window.__SC="ok:"+Object.keys(map).length; if(view==="step")renderStep(); return window.__SC; };
+window.__setStep=async(id,obj)=>{ if(!user)return"need login"; steps[id]=Object.assign(steps[id]||{},obj); await saveCloud(); window.__SS="ok"; if(view==="step")renderStep(); return"ok"; };
 $scrim.onclick=e=>{if(e.target===$scrim)closeSheet();};
 document.querySelectorAll("#nav button").forEach(btn=>btn.onclick=()=>{ view=btn.getAttribute("data-v"); document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b===btn)); render(); });
 </script>
