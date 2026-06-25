@@ -445,6 +445,8 @@ function renderStep(){
    +'.mchk{display:flex;align-items:flex-start;gap:9px;padding:7px 2px;cursor:pointer;font-size:13.5px;color:var(--text);line-height:1.5}'
    +'.mchk input{margin-top:2px;width:17px;height:17px;flex:0 0 auto;accent-color:#3ad29f}'
    +'.mchk .dn{color:var(--muted);text-decoration:line-through}'
+   +'.msrc{margin:0 0 4px 26px;border-left:2px solid #cfe0ff;padding:3px 0 3px 11px;font-size:12px;color:var(--ink-soft);line-height:1.65}'
+   +'.msrc .sh{font-size:10.5px;color:var(--muted);margin-bottom:2px}'
    +'.mmemo{width:100%;box-sizing:border-box;margin-top:8px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;background:#fbfcfe;color:var(--text);resize:vertical;min-height:46px}'
    +'.mmlbl{font-size:11px;font-weight:700;color:var(--muted);margin:8px 2px 2px}'
    +'.st-aside{position:fixed;top:78px;left:max(16px,calc((100vw - 760px)/2 - 318px));width:292px;max-height:calc(100vh - 150px);overflow:auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 15px;box-shadow:var(--shadow);z-index:15}'
@@ -481,6 +483,8 @@ function renderStep(){
       var c=stProg(s.id);
       s.ch.forEach((item,ci)=>{ var on=!!c[ci];
         h+='<label class="mchk" data-chk="'+s.id+'" data-ci="'+ci+'"><input type="checkbox" '+(on?'checked':'')+'><span class="'+(on?'dn':'')+'">'+esc(item)+'</span></label>';
+        var src=steps[s.id]&&steps[s.id].chq&&steps[s.id].chq[ci];
+        if(src) h+='<div class="msrc"><div class="sh">💬 元の発言（要約前）</div>'+esc(src).replace(/\n/g,'<br>')+'</div>';
       });
       h+='<div class="mmlbl">📝 メモ</div><textarea class="mmemo" data-memo="'+s.id+'" placeholder="気づき・自分のチャンネルでの結果など">'+esc((steps[s.id]&&steps[s.id].memo)||'')+'</textarea>';
       h+='</div>';
@@ -500,6 +504,7 @@ function renderStep(){
 /* 逐語(キラさんの言葉)をFirestoreにだけ投入する注入口。本文はコードに持たず、ログイン済み本人のusers/{uid}.steps[id].quoteへ書く */
 window.__importStepQuotes=async(map)=>{ if(!user)return"need login"; for(const k in map){ steps[k]=steps[k]||{}; steps[k].quote=map[k]; } await saveCloud(); window.__SQ="ok:"+Object.keys(map).length; if(view==="step")renderStep(); return window.__SQ; };
 window.__resetDaily=async()=>{ if(!user)return"need login"; daily={}; await saveCloud(); if(view==="step")renderStep(); window.__RD="reset"; return"reset"; };
+window.__importStepChq=async(map)=>{ if(!user)return"need login"; for(const k in map){ steps[k]=steps[k]||{}; steps[k].chq=map[k]; } await saveCloud(); window.__SC="ok:"+Object.keys(map).length; if(view==="step")renderStep(); return window.__SC; };
 $scrim.onclick=e=>{if(e.target===$scrim)closeSheet();};
 document.querySelectorAll("#nav button").forEach(btn=>btn.onclick=()=>{ view=btn.getAttribute("data-v"); document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b===btn)); render(); });
 </script>
