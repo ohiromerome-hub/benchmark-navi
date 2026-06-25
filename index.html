@@ -407,7 +407,8 @@ const DAILY=["🎯 ベンチを1つ観察する（伸びてる動画）","🎵 �
 function stDateStr(off){ var d=new Date(); if(off)d.setDate(d.getDate()+off); return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); }
 function dailyNorm(){ var t=stDateStr(0); if(daily.date!==t){ daily.date=t; daily.c=[]; } if(!Array.isArray(daily.c))daily.c=[]; if(typeof daily.streak!=="number")daily.streak=0;
   var valid=(daily.last===stDateStr(0)||daily.last===stDateStr(-1)); return {today:t, doneN:daily.c.filter(Boolean).length, all:daily.c.filter(Boolean).length===DAILY.length, streak:valid?daily.streak:0}; }
-async function dailyToggle(i,on){ var t=stDateStr(0); if(daily.date!==t){daily.date=t;daily.c=[];} var arr=Array.isArray(daily.c)?daily.c.slice():[]; arr[i]=on; daily.c=arr;
+async function dailyToggle(i,on){ var t=stDateStr(0); if(daily.date!==t){daily.date=t;daily.c=[];} var arr=[]; for(var k=0;k<DAILY.length;k++){ arr[k]=!!(daily.c&&daily.c[k]); } arr[i]=on; daily.c=arr;
+  if(typeof daily.streak!=="number")daily.streak=0;
   if(arr.filter(Boolean).length===DAILY.length && daily.last!==t){ daily.streak=(daily.last===stDateStr(-1)?(daily.streak||0)+1:1); daily.last=t; }
   await saveCloud(); renderStep(); }
 function dailyAside(){ var st=dailyNorm();
@@ -491,7 +492,7 @@ function renderStep(){
   // toggle open/close
   $main.querySelectorAll('.mhead').forEach(el=>el.onclick=()=>{ var id=el.getAttribute('data-tog'); steps[id]=steps[id]||{}; steps[id].open=!steps[id].open; renderStep(); });
   // checkbox
-  $main.querySelectorAll('.mchk').forEach(el=>{ el.querySelector('input').onclick=async(e)=>{ e.stopPropagation(); var id=el.getAttribute('data-chk'),ci=+el.getAttribute('data-ci'); steps[id]=steps[id]||{}; var arr=Array.isArray(steps[id].c)?steps[id].c.slice():[]; arr[ci]=e.target.checked; steps[id].c=arr; steps[id].open=true; await saveCloud(); renderStep(); }; });
+  $main.querySelectorAll('.mchk').forEach(el=>{ el.querySelector('input').onclick=async(e)=>{ e.stopPropagation(); var id=el.getAttribute('data-chk'),ci=+el.getAttribute('data-ci'); var sd=STEP_DATA.find(x=>x.id===id); var n=sd?sd.ch.length:0; steps[id]=steps[id]||{}; var prev=steps[id].c, arr=[]; for(var k=0;k<n;k++){ arr[k]=!!(prev&&prev[k]); } arr[ci]=e.target.checked; steps[id].c=arr; steps[id].open=true; await saveCloud(); renderStep(); }; });
   // memo (save on blur)
   $main.querySelectorAll('.mmemo').forEach(el=>{ el.onblur=async()=>{ var id=el.getAttribute('data-memo'); steps[id]=steps[id]||{}; if((steps[id].memo||'')===el.value)return; steps[id].memo=el.value; steps[id].open=true; await saveCloud(); }; });
   $main.querySelectorAll('.st-aside .sachk').forEach(el=>{ el.querySelector('input').onclick=(e)=>{ e.stopPropagation(); dailyToggle(+el.getAttribute('data-di'), e.target.checked); }; });
