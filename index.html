@@ -124,7 +124,7 @@ const configured = !String(firebaseConfig.apiKey).startsWith("PASTE_");
 let auth=null, db=null, user=null;
 if(configured){ const fapp=initializeApp(firebaseConfig); auth=getAuth(fapp); db=getFirestore(fapp); }
 
-let genres=[], benches=[], qas=[], steps={}, view="genre";
+let genres=[], benches=[], qas=[], steps={}, daily={}, view="genre";
 const $main=document.getElementById("main"), $auth=document.getElementById("auth"), $scrim=document.getElementById("scrim"), $sheet=document.getElementById("sheet");
 const nowY=new Date().getFullYear();
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -148,12 +148,12 @@ if(configured){
 function userRef(){ return doc(db,"users",user.uid); }
 async function loadCloud(){
   try{ const snap=await getDoc(userRef());
-    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; }
-    else { genres=[]; benches=[]; qas=[]; steps={}; await saveCloud(); }
-  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; steps={}; }
+    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; }
+    else { genres=[]; benches=[]; qas=[]; steps={}; daily={}; await saveCloud(); }
+  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; steps={}; daily={}; }
 }
 async function saveCloud(){ if(!user)return;
-  try{ await setDoc(userRef(),{genres,benches,qas,steps,updatedAt:Date.now()},{merge:true}); }
+  try{ await setDoc(userRef(),{genres,benches,qas,steps,daily,updatedAt:Date.now()},{merge:true}); }
   catch(e){ console.error(e); alert("保存でエラー: "+e.message); }
 }
 
@@ -403,6 +403,20 @@ function stMM(s){var m=Math.floor(s/60),x=s%60;return m+":"+(x<10?"0":"")+x;}
 function stProg(id){ var p=steps[id]||{}; return Array.isArray(p.c)?p.c:[]; }
 function stDoneN(s){ var c=stProg(s.id),n=0; for(var i=0;i<s.ch.length;i++) if(c[i])n++; return n; }
 function stComplete(s){ return stDoneN(s)===s.ch.length; }
+const DAILY=["🎯 ベンチを1つ観察する（伸びてる動画）","🎵 曲を1つ作る（SUNO）","🎬 動画を1本つくる／予約投稿","📊 昨日の数値を見て1つ改善","📝 今日の気づきをメモ"];
+function stDateStr(off){ var d=new Date(); if(off)d.setDate(d.getDate()+off); return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); }
+function dailyNorm(){ var t=stDateStr(0); if(daily.date!==t){ daily.date=t; daily.c=[]; } if(!Array.isArray(daily.c))daily.c=[]; if(typeof daily.streak!=="number")daily.streak=0;
+  var valid=(daily.last===stDateStr(0)||daily.last===stDateStr(-1)); return {today:t, doneN:daily.c.filter(Boolean).length, all:daily.c.filter(Boolean).length===DAILY.length, streak:valid?daily.streak:0}; }
+async function dailyToggle(i,on){ var t=stDateStr(0); if(daily.date!==t){daily.date=t;daily.c=[];} var arr=Array.isArray(daily.c)?daily.c.slice():[]; arr[i]=on; daily.c=arr;
+  if(arr.filter(Boolean).length===DAILY.length && daily.last!==t){ daily.streak=(daily.last===stDateStr(-1)?(daily.streak||0)+1:1); daily.last=t; }
+  await saveCloud(); renderStep(); }
+function dailyAside(){ var st=dailyNorm();
+  var h='<div class="st-aside"><div class="sah">🔥 毎日の習慣</div><div class="sas">作る→投稿→改善を毎日まわす</div>';
+  h+='<div class="sastk"><span class="n">'+st.streak+'</span> 日連続</div>';
+  h+='<div class="saprog">今日 '+st.doneN+' / '+DAILY.length+'</div>';
+  DAILY.forEach((it,i)=>{ var on=!!(daily.c&&daily.c[i]); h+='<label class="sachk" data-di="'+i+'"><input type="checkbox" '+(on?"checked":"")+'><span class="'+(on?"dn":"")+'">'+esc(it)+'</span></label>'; });
+  h+='<div class="sadone" style="'+(st.all?"":"display:none")+'">✅ 今日のリズム完了！えらい！</div>';
+  h+='</div>'; return h; }
 function renderStep(){
   $main.innerHTML='<style>'
    +'.stwrap{padding:4px 2px 8px}'
@@ -432,6 +446,17 @@ function renderStep(){
    +'.mchk .dn{color:var(--muted);text-decoration:line-through}'
    +'.mmemo{width:100%;box-sizing:border-box;margin-top:8px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;background:#fbfcfe;color:var(--text);resize:vertical;min-height:46px}'
    +'.mmlbl{font-size:11px;font-weight:700;color:var(--muted);margin:8px 2px 2px}'
+   +'.st-aside{position:fixed;top:78px;left:max(16px,calc((100vw - 760px)/2 - 318px));width:292px;max-height:calc(100vh - 150px);overflow:auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 15px;box-shadow:var(--shadow);z-index:15}'
+   +'.st-aside .sah{font-size:14px;font-weight:800;color:var(--ink)}'
+   +'.st-aside .sas{font-size:11.5px;color:var(--muted);margin:2px 0 10px}'
+   +'.st-aside .sastk{font-size:12px;color:var(--ink-soft);background:#fff5e9;border:1px solid #ffd9a8;border-radius:9px;padding:6px 10px;margin-bottom:6px}'
+   +'.st-aside .sastk .n{font-size:19px;font-weight:800;color:#e8820c;vertical-align:-1px}'
+   +'.st-aside .saprog{font-size:11.5px;font-weight:700;color:var(--muted);margin:0 2px 8px}'
+   +'.st-aside .sachk{display:flex;align-items:flex-start;gap:8px;padding:7px 2px;cursor:pointer;font-size:13px;color:var(--text);line-height:1.45;border-top:1px solid var(--line)}'
+   +'.st-aside .sachk input{margin-top:1px;width:17px;height:17px;flex:0 0 auto;accent-color:#3ad29f}'
+   +'.st-aside .sachk .dn{color:var(--muted);text-decoration:line-through}'
+   +'.st-aside .sadone{margin-top:10px;font-size:12px;font-weight:700;color:#159c73;background:#dff5ec;border-radius:9px;padding:8px 10px;text-align:center}'
+   +'@media(max-width:1119px){.st-aside{position:static;width:auto;max-height:none;margin:0 2px 14px;box-shadow:none}}'
    +'</style>';
   var doneSteps=STEP_DATA.filter(stComplete).length, pct=Math.round(doneSteps/STEP_DATA.length*100);
   var h='<div class="stwrap">';
@@ -439,6 +464,7 @@ function renderStep(){
   h+='<div class="stsub">BGMで稼ぐ全体の流れを8ステップに。タップで「キラさんの要点・やること」を開けます。動画リンクから本人の説明をその場面で確認できます。</div>';
   h+='<div class="stbar"><i style="width:'+pct+'%"></i></div>';
   h+='<div class="stbtxt">'+doneSteps+' / '+STEP_DATA.length+' ステップ完了（'+pct+'%）</div>';
+  h+=dailyAside();
   h+='<div class="mmbr">';
   STEP_DATA.forEach((s,i)=>{
     var dn=stDoneN(s),cmp=dn===s.ch.length,part=dn>0&&!cmp;
@@ -468,6 +494,7 @@ function renderStep(){
   $main.querySelectorAll('.mchk').forEach(el=>{ el.querySelector('input').onclick=async(e)=>{ e.stopPropagation(); var id=el.getAttribute('data-chk'),ci=+el.getAttribute('data-ci'); steps[id]=steps[id]||{}; var arr=Array.isArray(steps[id].c)?steps[id].c.slice():[]; arr[ci]=e.target.checked; steps[id].c=arr; steps[id].open=true; await saveCloud(); renderStep(); }; });
   // memo (save on blur)
   $main.querySelectorAll('.mmemo').forEach(el=>{ el.onblur=async()=>{ var id=el.getAttribute('data-memo'); steps[id]=steps[id]||{}; if((steps[id].memo||'')===el.value)return; steps[id].memo=el.value; steps[id].open=true; await saveCloud(); }; });
+  $main.querySelectorAll('.st-aside .sachk').forEach(el=>{ el.querySelector('input').onclick=(e)=>{ e.stopPropagation(); dailyToggle(+el.getAttribute('data-di'), e.target.checked); }; });
 }
 /* 逐語(キラさんの言葉)をFirestoreにだけ投入する注入口。本文はコードに持たず、ログイン済み本人のusers/{uid}.steps[id].quoteへ書く */
 window.__importStepQuotes=async(map)=>{ if(!user)return"need login"; for(const k in map){ steps[k]=steps[k]||{}; steps[k].quote=map[k]; } await saveCloud(); window.__SQ="ok:"+Object.keys(map).length; if(view==="step")renderStep(); return window.__SQ; };
