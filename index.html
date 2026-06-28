@@ -108,8 +108,7 @@
   <main id="main"><div class="loading">読み込み中…</div></main>
   <nav id="nav">
     <button data-v="step"><span class="ic">🚀</span><span class="lb">ステップ</span></button>
-    <button data-v="genre" class="on"><span class="ic">◎</span><span class="lb">ジャンル</span></button>
-    <button data-v="bench"><span class="ic">▲</span><span class="lb">ベンチ先</span></button>
+    <button data-v="genre" class="on"><span class="ic">🗂</span><span class="lb">ジャンル＆手本</span></button>
     <button data-v="track"><span class="ic">📈</span><span class="lb">推移</span></button>
     <button data-v="map"><span class="ic">⛓</span><span class="lb">つながり</span></button>
     <button data-v="qa"><span class="ic">❓</span><span class="lb">Q&amp;A</span></button>
@@ -195,7 +194,7 @@ function goalReach(g){ var gv=goalViews(); var m=num(g.monthly); if(gv==null||m=
 function goalReachPill(g){ var r=goalReach(g); if(!r) return ''; var n=r.ratio, t=n>=1?('目標×'+(n>=10?Math.round(n):n.toFixed(1))):'目標未満'; return '<span class="grp '+(r.ok?'grp-ok':'grp-no')+'">🎯'+t+'</span>'; }
 function goalFormHTML(){ var a=goal.amount||'', r=goal.rpm||'2000', p=goal.purpose||''; return '<div class="mgoal"><div class="gfh">🎯 あなたの目標（数値で記録）</div><div class="gfr"><label>月収目標</label><div class="gfi"><span>¥</span><input id="g_amount" type="text" inputmode="numeric" value="'+esc(a)+'" placeholder="500000"></div></div><div class="gfr"><label>RPM（1000再生あたり）</label><div class="gfi"><span>¥</span><input id="g_rpm" type="text" inputmode="numeric" value="'+esc(r)+'" placeholder="2000"></div></div><div class="gfr gfp"><label>目的（なぜこの金額？）</label><textarea id="g_purpose" placeholder="この金額を達成したら叶えたい人生（例：会社を辞めて時間と場所に縛られない暮らし）">'+esc(p)+'</textarea></div><div class="gfo" id="g_out">'+goalOutHTML(goalViews())+'</div></div>'; }
 
-function render(){ if(!user&&configured){renderGate();return;} if(view==="genre")renderGenre(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
+function render(){ if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
 function renderGate(){
   if(!configured){ $main.innerHTML='<div class="gate"><div class="big">セットアップが必要です</div><div class="small">同梱の「セットアップ手順.md」に沿って、コード冒頭の firebaseConfig にあなたのFirebaseの値を貼ってください。</div></div>'; return; }
   $main.innerHTML='<div class="gate"><div class="big">ログインして始める</div><div class="small">Googleでログインすると、入力データがあなた専用に保存され、PC・スマホで同期されます。</div><button class="gbtn" id="gateLogin">Googleでログイン</button></div>';
@@ -237,9 +236,9 @@ function renderBench(){
   document.getElementById("addB").onclick=()=>editBench(null);
   $main.querySelectorAll("[data-eb]").forEach(el=>el.onclick=e=>{if(e.target.classList.contains("url"))return;editBench(el.getAttribute("data-eb"));});
 }
-function editBench(id){
+function editBench(id,presetGenre){
   const b=id?benches.find(x=>x.id===id):{};
-  const f={name:b.name||"",url:b.url||"",genreId:b.genreId||"",open:b.open||"",subs:b.subs||"",memo:b.memo||""};
+  const f={name:b.name||"",url:b.url||"",genreId:b.genreId||presetGenre||"",open:b.open||"",subs:b.subs||"",memo:b.memo||""};
   const opts='<option value="">— ジャンルを選ぶ —</option>'+genres.map(g=>'<option value="'+g.id+'"'+(f.genreId===g.id?" selected":"")+'>'+esc(g.name)+'</option>').join("");
   let h='<h3>'+(id?"ベンチ先を編集":"ベンチ先を追加")+'</h3><div class="fld"><label>紐づくジャンル <span class="note">どの稼げるジャンルのベンチか</span></label><select id="b_genre">'+opts+'</select></div>'+fld("チャンネル名","b_name",f.name,"text","例：Flow365")+fld("チャンネルURL","b_url",f.url,"url","https://www.youtube.com/@...")+'<div class="two">'+fld("開設時期","b_open",f.open,"date","")+fld("登録者数（人）","b_subs",f.subs,"number","例：7230")+'</div><div class="live" id="b_live"></div>'+fld("メモ","b_memo",f.memo,"textarea","特徴・狙いなど")+'<div class="acts">'+(id?'<button class="del" id="b_del">削除</button>':'')+'<button class="cancel" id="b_cancel">閉じる</button><button class="save" id="b_save">保存</button></div>';
   openSheet(h);
@@ -251,6 +250,45 @@ function editBench(id){
   document.getElementById("b_cancel").onclick=closeSheet;
 }
 
+function renderHub(){
+  let h='<div class="view-title"><h2>ジャンル＆手本</h2><button class="addbtn" id="addG">＋ ジャンル</button></div>';
+  h+='<div style="font-size:12px;color:var(--muted);margin:0 2px 14px">左＝稼げるジャンル（市場の証明）→ 右＝その中の今伸びてる手本ch。左から右へ繋がりを追える。</div>';
+  if(!genres.length){ h+='<div class="empty"><div class="big">まずジャンルを1つ登録</div><div class="small">長期間安定して伸びているジャンルの代表chを登録 → その中の手本chをぶら下げます。</div></div>'; $main.innerHTML=h; document.getElementById("addG").onclick=()=>editGenre(null); return; }
+  genres.forEach(g=>{
+    var ok=genreOK(g);
+    var gbadge=ok===true?'<span style="font-size:9px;background:#e3f5ec;color:#0f8f60;padding:1px 6px;border-radius:20px;font-weight:700">稼げる</span>':'<span style="font-size:9px;background:#fbe7bf;color:#8a5a0f;padding:1px 6px;border-radius:20px;font-weight:700">'+(ok===false?'要確認':'未入力')+'</span>';
+    var gbg=ok===true?'#15213e':'#42506e';
+    var meta=[g.rep?esc(g.rep):'', num(g.startYear)!=null?esc(g.startYear)+'〜':'', num(g.monthly)!=null?'月間'+num(g.monthly)+'万':''].filter(Boolean).join('・')||'代表ch・継続年数 未入力';
+    var kids=benches.filter(b=>b.genreId===g.id);
+    h+='<div style="display:flex;align-items:stretch;margin-bottom:16px">'
+      +'<div class="tap" data-eg="'+g.id+'" style="align-self:center;min-width:106px;max-width:106px;background:'+gbg+';color:#fff;border-radius:12px;padding:9px 10px">'
+        +'<div style="font-size:12px;font-weight:700">'+(ok===true?'◎':'…')+' '+esc(g.name||"(無名)")+'</div>'
+        +'<div style="margin-top:3px">'+gbadge+'</div>'
+        +'<div style="font-size:9px;color:#c3cce0;margin-top:4px;line-height:1.45">'+meta+'</div></div>'
+      +'<div style="align-self:center;width:14px;height:2px;background:#bcc8da;flex:none"></div>'
+      +'<div style="flex:1;border-left:2px solid #bcc8da">';
+    if(kids.length){ kids.forEach(b=>{
+      var bok=benchOK(b), ms=monthsSince(b.open);
+      var bm=[num(b.subs)!=null?num(b.subs).toLocaleString()+'人':'', ms!=null?'開設'+ms+'ヶ月':''].filter(Boolean).join('・')||'登録者・開設 未入力';
+      var bb=bok?'<span style="font-size:9px;background:#e3f5ec;color:#0f8f60;padding:2px 6px;border-radius:20px;font-weight:700;flex:none">選定OK</span>':'<span style="font-size:9px;background:#fbf0d8;color:#b67613;padding:2px 6px;border-radius:20px;font-weight:700;flex:none">要確認</span>';
+      h+='<div style="display:flex;align-items:center;margin:7px 0"><div style="width:14px;height:2px;background:#bcc8da;flex:none"></div>'
+        +'<div class="tap" data-eb="'+b.id+'" style="flex:1;background:#fff;border:1px solid var(--line);border-radius:10px;padding:7px 10px;display:flex;align-items:center;justify-content:space-between;gap:6px">'
+        +'<div><div style="font-size:12px;font-weight:700;color:#2f63e6">'+esc(b.name||"(無名のch)")+'</div><div style="font-size:9px;color:#6b7585;margin-top:1px">'+bm+'</div></div>'+bb+'</div></div>';
+    }); }
+    else { h+='<div style="display:flex;align-items:center;margin:7px 0"><div style="width:14px;height:2px;background:#bcc8da;flex:none"></div><div style="font-size:11px;color:#b67613;font-weight:600">↳ 手本未登録 — 今伸びてるchを探そう</div></div>'; }
+    h+='<div style="display:flex;align-items:center;margin:7px 0"><div style="width:14px;height:2px;background:#bcc8da;flex:none"></div><div class="tap" data-addb="'+g.id+'" style="font-size:11px;color:#2f63e6;font-weight:500">＋ 手本を追加</div></div>';
+    h+='</div></div>';
+  });
+  var orphans=benches.filter(b=>!b.genreId||!genreName(b.genreId));
+  if(orphans.length){ h+='<div style="background:#fbf0d8;border:1px solid #f0d9a8;border-radius:12px;padding:10px 12px;margin-top:6px"><div style="font-size:12px;font-weight:700;color:#b67613;margin-bottom:6px">ジャンル未設定の手本 '+orphans.length+'件</div>';
+    orphans.forEach(b=>{ h+='<div class="tap" data-eb="'+b.id+'" style="background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:13px;font-weight:700">'+esc(b.name||"(無名のch)")+'</span><span style="font-size:9px;background:#fbf0d8;color:#b67613;padding:2px 7px;border-radius:20px;font-weight:700">ジャンルに紐付け要</span></div>'; });
+    h+='</div>'; }
+  $main.innerHTML=h;
+  document.getElementById("addG").onclick=()=>editGenre(null);
+  $main.querySelectorAll("[data-eg]").forEach(el=>el.onclick=()=>editGenre(el.getAttribute("data-eg")));
+  $main.querySelectorAll("[data-eb]").forEach(el=>el.onclick=()=>editBench(el.getAttribute("data-eb")));
+  $main.querySelectorAll("[data-addb]").forEach(el=>el.onclick=()=>editBench(null,el.getAttribute("data-addb")));
+}
 function renderMap(){
   const profitable=genres.filter(g=>genreOK(g)===true).length;
   const linked=benches.filter(b=>b.genreId&&genreName(b.genreId)).length;
