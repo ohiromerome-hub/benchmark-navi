@@ -194,7 +194,16 @@ function goalReach(g){ var gv=goalViews(); var m=num(g.monthly); if(gv==null||m=
 function goalReachPill(g){ var r=goalReach(g); if(!r) return ''; var n=r.ratio, t=n>=1?('目標×'+(n>=10?Math.round(n):n.toFixed(1))):'目標未満'; return '<span class="grp '+(r.ok?'grp-ok':'grp-no')+'">🎯'+t+'</span>'; }
 function goalFormHTML(){ var a=goal.amount||'', r=goal.rpm||'2000', p=goal.purpose||''; return '<div class="mgoal"><div class="gfh">🎯 あなたの目標（数値で記録）</div><div class="gfr"><label>月収目標</label><div class="gfi"><span>¥</span><input id="g_amount" type="text" inputmode="numeric" value="'+esc(a)+'" placeholder="500000"></div></div><div class="gfr"><label>RPM（1000再生あたり）</label><div class="gfi"><span>¥</span><input id="g_rpm" type="text" inputmode="numeric" value="'+esc(r)+'" placeholder="2000"></div></div><div class="gfr gfp"><label>目的（なぜこの金額？）</label><textarea id="g_purpose" placeholder="この金額を達成したら叶えたい人生（例：会社を辞めて時間と場所に縛られない暮らし）">'+esc(p)+'</textarea></div><div class="gfo" id="g_out">'+goalOutHTML(goalViews())+'</div></div>'; }
 
-function render(){ if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
+function render(){ if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="material")renderMaterial(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
+function renderMaterial(){
+  $main.innerHTML='<div style="padding:4px 2px">'
+   +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><button id="matBack" class="pill">← ステップ</button><span style="font-size:16px;font-weight:800;color:var(--ink)">📚 セミナー資料</span></div>'
+   +'<div style="font-size:11.5px;color:var(--muted);margin:0 2px 10px;line-height:1.5">キラさんのセミナー配布スライド（原典Drive）。Driveにアクセス権のあるGoogleアカウントでログイン中だと表示されます。社外公開しないでください。</div>'
+   +'<div style="position:relative;width:100%;aspect-ratio:4/3;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff"><iframe src="'+SLIDE_EMBED+'" style="position:absolute;inset:0;width:100%;height:100%;border:0" allow="autoplay" referrerpolicy="no-referrer"></iframe></div>'
+   +'<a class="mvid" style="color:#3a6df0;margin-top:10px" href="'+SLIDE_URL+'" target="_blank" rel="noopener">📊 Driveで開く↗（表示されない時はこちら）</a>'
+   +'</div>';
+  document.getElementById("matBack").onclick=()=>{ view="step"; render(); };
+}
 function renderGate(){
   if(!configured){ $main.innerHTML='<div class="gate"><div class="big">セットアップが必要です</div><div class="small">同梱の「セットアップ手順.md」に沿って、コード冒頭の firebaseConfig にあなたのFirebaseの値を貼ってください。</div></div>'; return; }
   $main.innerHTML='<div class="gate"><div class="big">ログインして始める</div><div class="small">Googleでログインすると、入力データがあなた専用に保存され、PC・スマホで同期されます。</div><button class="gbtn" id="gateLogin">Googleでログイン</button></div>';
@@ -542,6 +551,9 @@ function exportTrackCSV(){
    公開リポジトリには「ステップ構造・やること・動画の該当時間リンク」だけを置く。
    キラさんの逐語の発言（有料セミナー本文）は載せない。リンクから本人が動画で確認する。 */
 const STEP_VID="https://www.youtube.com/watch?v=iG3tYDu1_xI";
+/* セミナー配布スライド（原典Drive）。再配布せず原典へリンク／埋め込みのみ。 */
+const SLIDE_URL="https://drive.google.com/file/d/1wWieynOO1MeLTYo5aZJB054gBIgKSLi2/view";
+const SLIDE_EMBED="https://drive.google.com/file/d/1wWieynOO1MeLTYo5aZJB054gBIgKSLi2/preview";
 const STEP_DATA=[
  {id:"mind",ic:"🧠",t:"マインドセット",ts:395,
   whyT:"なぜAI×BGMで月収200万円を狙えるのか",whyTs:901,
@@ -657,7 +669,8 @@ function renderStep(){
   var doneSteps=STEP_DATA.filter(stComplete).length, pct=Math.round(doneSteps/STEP_DATA.length*100);
   var h='<div class="stwrap">';
   h+='<div class="sthd">🚀 キラ式ロードマップ</div>';
-  h+='<div class="stsub">BGMで稼ぐ全体の流れを8ステップに。タップで「キラさんの要点・やること」を開けます。動画リンクから本人の説明をその場面で確認できます。</div>';
+  h+='<div class="stsub">BGMで稼ぐ全体の流れを8ステップに。タップで「キラさんの要点・やること」を開けます。各ステップの動画／スライドリンクから本人の説明をその場面で確認できます。</div>';
+  h+='<button id="openMaterial" class="pill" style="margin:0 2px 12px;color:#3a6df0;border-color:#cfe0ff">📚 セミナー資料（スライド）を見る</button>';
   h+='<div class="stbar"><i style="width:'+pct+'%"></i></div>';
   h+='<div class="stbtxt">'+doneSteps+' / '+STEP_DATA.length+' ステップ完了（'+pct+'%）</div>';
   h+=dailyAside();
@@ -677,7 +690,8 @@ function renderStep(){
       h+='<div class="mk"><b>キラさんの要点</b><br>'+esc(s.k)+'</div>';
       var qv=steps[s.id]&&steps[s.id].quote;
       if(qv) h+='<div class="mq"><div class="qh">💬 キラさんの言葉（全文）</div>'+esc(qv).replace(/\n/g,'<br>')+'<div class="ql">🔒 Hiroka専用・このアプリ内だけに表示</div></div>';
-      if(s.ts!=null) h+='<a class="mvid" href="'+STEP_VID+'&t='+s.ts+'s" target="_blank" rel="noopener">▶ 動画で見る（'+stMM(s.ts)+'）</a><br>';
+      if(s.ts!=null) h+='<a class="mvid" href="'+STEP_VID+'&t='+s.ts+'s" target="_blank" rel="noopener">▶ 動画で見る（'+stMM(s.ts)+'）</a>　';
+      h+='<a class="mvid" style="color:#3a6df0" href="'+SLIDE_URL+'" target="_blank" rel="noopener">📊 スライド↗</a><br>';
       var c=stProg(s.id);
       s.ch.forEach((item,ci)=>{ var on=!!c[ci];
         h+='<label class="mchk" data-chk="'+s.id+'" data-ci="'+ci+'"><input type="checkbox" '+(on?'checked':'')+'><span class="'+(on?'dn':'')+'">'+esc(item)+'</span></label>';
@@ -694,6 +708,7 @@ function renderStep(){
   });
   h+='</div></div>';
   $main.innerHTML+=h;
+  var om=document.getElementById('openMaterial'); if(om)om.onclick=()=>{ view='material'; render(); };
   // toggle open/close
   $main.querySelectorAll('.mhead').forEach(el=>el.onclick=()=>{ var id=el.getAttribute('data-tog'); steps[id]=steps[id]||{}; steps[id].open=!steps[id].open; renderStep(); });
   // checkbox
