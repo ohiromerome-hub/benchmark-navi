@@ -110,6 +110,7 @@
     <button data-v="step"><span class="ic">🚀</span><span class="lb">ステップ</span></button>
     <button data-v="genre" class="on"><span class="ic">◎</span><span class="lb">ジャンル</span></button>
     <button data-v="bench"><span class="ic">▲</span><span class="lb">ベンチ先</span></button>
+    <button data-v="track"><span class="ic">📈</span><span class="lb">推移</span></button>
     <button data-v="map"><span class="ic">⛓</span><span class="lb">つながり</span></button>
     <button data-v="qa"><span class="ic">❓</span><span class="lb">Q&amp;A</span></button>
   </nav>
@@ -134,7 +135,8 @@ const configured = !String(firebaseConfig.apiKey).startsWith("PASTE_");
 let auth=null, db=null, user=null;
 if(configured){ const fapp=initializeApp(firebaseConfig); auth=getAuth(fapp); db=getFirestore(fapp); }
 
-let genres=[], benches=[], qas=[], steps={}, daily={}, goal={}, view="genre";
+let genres=[], benches=[], qas=[], steps={}, daily={}, goal={}, tracklog={}, view="genre";
+let trackMetric="subs";
 const $main=document.getElementById("main"), $auth=document.getElementById("auth"), $scrim=document.getElementById("scrim"), $sheet=document.getElementById("sheet");
 const nowY=new Date().getFullYear();
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -171,12 +173,12 @@ if(configured){
 function userRef(){ return doc(db,"users",user.uid); }
 async function loadCloud(){
   try{ const snap=await getDoc(userRef());
-    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; goal=d.goal||{}; }
-    else { genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; await saveCloud(); }
-  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; }
+    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; goal=d.goal||{}; tracklog=d.tracklog||{}; }
+    else { genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; tracklog={}; await saveCloud(); }
+  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; tracklog={}; }
 }
 async function saveCloud(){ if(!user)return;
-  try{ await setDoc(userRef(),{genres,benches,qas,steps,daily,goal,updatedAt:Date.now()},{merge:true}); }
+  try{ await setDoc(userRef(),{genres,benches,qas,steps,daily,goal,tracklog,updatedAt:Date.now()},{merge:true}); }
   catch(e){ console.error(e); alert("保存でエラー: "+e.message); }
 }
 
@@ -193,7 +195,7 @@ function goalReach(g){ var gv=goalViews(); var m=num(g.monthly); if(gv==null||m=
 function goalReachPill(g){ var r=goalReach(g); if(!r) return ''; var n=r.ratio, t=n>=1?('目標×'+(n>=10?Math.round(n):n.toFixed(1))):'目標未満'; return '<span class="grp '+(r.ok?'grp-ok':'grp-no')+'">🎯'+t+'</span>'; }
 function goalFormHTML(){ var a=goal.amount||'', r=goal.rpm||'2000', p=goal.purpose||''; return '<div class="mgoal"><div class="gfh">🎯 あなたの目標（数値で記録）</div><div class="gfr"><label>月収目標</label><div class="gfi"><span>¥</span><input id="g_amount" type="text" inputmode="numeric" value="'+esc(a)+'" placeholder="500000"></div></div><div class="gfr"><label>RPM（1000再生あたり）</label><div class="gfi"><span>¥</span><input id="g_rpm" type="text" inputmode="numeric" value="'+esc(r)+'" placeholder="2000"></div></div><div class="gfr gfp"><label>目的（なぜこの金額？）</label><textarea id="g_purpose" placeholder="この金額を達成したら叶えたい人生（例：会社を辞めて時間と場所に縛られない暮らし）">'+esc(p)+'</textarea></div><div class="gfo" id="g_out">'+goalOutHTML(goalViews())+'</div></div>'; }
 
-function render(){ if(!user&&configured){renderGate();return;} if(view==="genre")renderGenre(); else if(view==="bench")renderBench(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
+function render(){ if(!user&&configured){renderGate();return;} if(view==="genre")renderGenre(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
 function renderGate(){
   if(!configured){ $main.innerHTML='<div class="gate"><div class="big">セットアップが必要です</div><div class="small">同梱の「セットアップ手順.md」に沿って、コード冒頭の firebaseConfig にあなたのFirebaseの値を貼ってください。</div></div>'; return; }
   $main.innerHTML='<div class="gate"><div class="big">ログインして始める</div><div class="small">Googleでログインすると、入力データがあなた専用に保存され、PC・スマホで同期されます。</div><button class="gbtn" id="gateLogin">Googleでログイン</button></div>';
@@ -401,6 +403,103 @@ function fld(label,id,v,type,ph){ if(type==="textarea") return '<div class="fld"
   return '<div class="fld"><label>'+label+'</label><input id="'+id+'" type="'+type+'" value="'+esc(v)+'" placeholder="'+esc(ph)+'"'+(type==="number"?' inputmode="numeric"':'')+'></div>'; }
 function openSheet(html){$sheet.innerHTML=html;$scrim.classList.add("show");}
 function closeSheet(){$scrim.classList.remove("show");$sheet.innerHTML="";}
+
+/* ===== 推移（ベンチ先の登録者・再生 日次トラッキング） =====
+   既存の benches[] にひも付け、追加データは tracklog{benchId:{logs:[{date,subs,views}],status,cause}} のみ。 */
+function trackStore(id){ tracklog[id]=tracklog[id]||{logs:[],status:"active",cause:""}; return tracklog[id]; }
+function benchLogs(id){ var t=tracklog[id]; var a=(t&&t.logs)?t.logs.slice():[]; a.sort((x,y)=>x.date<y.date?-1:(x.date>y.date?1:0)); return a; }
+function daysBetween(d1,d2){ return Math.max(Math.round((new Date(d2)-new Date(d1))/86400000),1); }
+function trackConv(id){ var logs=benchLogs(id); if(logs.length<2)return null;
+  var last=logs[logs.length-1]; var v=num(last.views); if(v==null||v<=0)return null;
+  var cut=new Date(last.date); cut.setDate(cut.getDate()-30); var base=null;
+  for(var i=0;i<logs.length;i++){ if(new Date(logs[i].date)>=cut){ base=logs[i]; break; } }
+  if(!base) base=logs[0]; var sa=num(base.subs), sb=num(last.subs); if(sa==null||sb==null)return null;
+  return Math.round((sb-sa)/v*1000*10)/10; }
+function trackSpark(vals,w,h,color){
+  if(!vals.length) return '<div style="width:'+w+'px;height:'+h+'px;background:var(--paper);border-radius:7px;flex:none"></div>';
+  if(vals.length<2){ return '<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" style="flex:none;background:var(--paper);border-radius:7px"><circle cx="'+(w/2)+'" cy="'+(h/2)+'" r="2.5" fill="'+color+'"/></svg>'; }
+  var min=Math.min.apply(null,vals), max=Math.max.apply(null,vals), rng=(max-min)||1;
+  var pts=vals.map((v,i)=>{ var x=6+i/(vals.length-1)*(w-12); var y=(h-6)-(v-min)/rng*(h-12); return (Math.round(x*10)/10)+','+(Math.round(y*10)/10); }).join(' ');
+  return '<svg viewBox="0 0 '+w+' '+h+'" width="'+w+'" height="'+h+'" style="flex:none;background:var(--paper);border-radius:7px"><polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'; }
+function trackCard(e){
+  var b=e.b, logs=e.logs, m=trackMetric, convV=e.conv;
+  var vals=logs.map(l=>num(l[m])).filter(v=>v!=null);
+  var good=convV!=null&&convV>=20, stalled=e.st.status==="stalled";
+  var dot=good?"#0f8f60":(stalled?"#d39414":"#6b7585"), color=good?"#0f8f60":(stalled?"#b67613":"#6b7585");
+  var badge=good?'<span class="badge b-good">手本級</span>':(stalled?'<span class="badge b-warn">要注意</span>':'');
+  var convStr=convV!=null?('<span style="font-size:12px;color:'+(good?"var(--good)":"var(--warn)")+';font-weight:700;margin-left:2px">'+convV+'<span style="font-size:9px;color:var(--muted);font-weight:400">/1000再生</span></span>'):'';
+  var strip='';
+  logs.forEach((l,i)=>{ var cur=num(l[m]), prev=i>0?num(logs[i-1][m]):null; var d=(cur!=null&&prev!=null)?(cur-prev):null;
+    var dStr=d==null?'':((d>=0?'+':'')+d.toLocaleString());
+    var dCol=d==null?'var(--muted)':(d>0?'var(--good)':(d<0?'#d23b3b':'var(--muted)'));
+    strip+='<div style="min-width:54px;text-align:center;padding:2px;border-left:1px solid var(--line)"><div style="font-size:9px;color:var(--muted)">'+esc(l.date.slice(5).replace('-','/'))+'</div><div style="font-size:12px;margin-top:3px'+(i===logs.length-1?';font-weight:700':'')+'">'+(cur!=null?cur.toLocaleString():'–')+'</div><div style="font-size:9px;color:'+dCol+'">'+dStr+'</div></div>'; });
+  if(!logs.length) strip='<div style="font-size:11px;color:var(--muted);padding:10px 8px">記録なし — ＋記録から追加</div>';
+  return '<div class="card tap" data-et="'+b.id+'" style="padding:11px 12px;margin-bottom:10px">'
+    +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:9px"><span style="width:8px;height:8px;border-radius:50%;background:'+dot+';display:inline-block;flex:none"></span><span style="font-size:14px;font-weight:700">'+esc(b.name||"(無名のch)")+'</span>'+convStr+'<span style="margin-left:auto">'+badge+'</span></div>'
+    +'<div style="display:flex;gap:8px;align-items:stretch">'+trackSpark(vals,110,58,color)+'<div class="strip" style="flex:1;overflow-x:auto"><div style="display:flex;height:100%">'+strip+'</div></div></div></div>'; }
+function trackDeadCard(e){ var b=e.b;
+  return '<div class="card tap" data-et="'+b.id+'" style="padding:11px 12px;margin-bottom:10px;background:#fdecec;border-color:#f3c0c0">'
+    +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><span style="font-size:14px;font-weight:700;color:#b3261e">👻 '+esc(b.name||"(無名のch)")+'</span><span style="margin-left:auto;font-size:10px;color:#b3261e">反面教師·停止</span></div>'
+    +'<div style="font-size:11px;color:#b3261e;line-height:1.6">'+(e.st.cause?esc(e.st.cause):'原因メモ未記入（タップして記入）')+'</div></div>'; }
+function renderTrack(){
+  let h='<div class="view-title"><h2>推移</h2><button class="addbtn" id="tAdd">＋ 記録</button></div>';
+  const tg=(k,lb)=>'<button data-m="'+k+'" style="font-size:11px;border:1px solid var(--line);border-radius:20px;padding:4px 12px;cursor:pointer;'+(trackMetric===k?'background:var(--link);color:#fff;border-color:var(--link)':'background:#fff;color:var(--muted)')+'">'+lb+'</button>';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px"><div style="display:flex;gap:5px">'+tg("subs","登録者")+tg("views","再生")+'</div><button class="pill" id="tCsv">⬇ CSV</button></div>';
+  h+='<div style="font-size:12px;color:var(--muted);margin:0 2px 12px">転換率＝直近30日の登録者増÷再生数（1000再生あたり何人登録）。高い順＝真似すべき手本。グラフは常時表示・右の数字は日別（横スクロール）。</div>';
+  if(!benches.length){ h+='<div class="empty"><div class="big">先に「ベンチ先」を登録</div><div class="small">「▲ベンチ先」タブで手本チャンネルを追加すると、ここで毎日の推移を記録できます。</div></div>'; $main.innerHTML=h; bindTrack(); return; }
+  var entries=benches.map(b=>({b:b,st:trackStore(b.id),logs:benchLogs(b.id),conv:trackConv(b.id)}));
+  var live=entries.filter(e=>e.st.status!=="stopped"&&e.st.status!=="stalled");
+  var watch=entries.filter(e=>e.st.status==="stalled");
+  var dead=entries.filter(e=>e.st.status==="stopped");
+  live.sort((a,b)=>((b.conv==null?-1:b.conv)-(a.conv==null?-1:a.conv)));
+  live.forEach(e=>h+=trackCard(e)); watch.forEach(e=>h+=trackCard(e));
+  if(dead.length){ h+='<div style="font-size:12px;font-weight:700;margin:6px 2px 8px;color:var(--muted)">👻 反面教師（記録ストップ・原因メモ）</div>'; dead.forEach(e=>h+=trackDeadCard(e)); }
+  $main.innerHTML=h; bindTrack(); }
+function bindTrack(){
+  var a=document.getElementById("tAdd"); if(a)a.onclick=()=>addRecordSheet(null);
+  var c=document.getElementById("tCsv"); if(c)c.onclick=exportTrackCSV;
+  $main.querySelectorAll("[data-m]").forEach(btn=>btn.onclick=()=>{ trackMetric=btn.getAttribute("data-m"); renderTrack(); });
+  $main.querySelectorAll("[data-et]").forEach(el=>el.onclick=()=>editTrackSheet(el.getAttribute("data-et")));
+  $main.querySelectorAll(".strip").forEach(s=>{ s.scrollLeft=s.scrollWidth; }); }
+function addRecordSheet(presetId){
+  if(!benches.length){ alert("先に「ベンチ先」を登録してください"); return; }
+  var opts=benches.map(b=>'<option value="'+b.id+'"'+(presetId===b.id?" selected":"")+'>'+esc(b.name||"(無名のch)")+'</option>').join("");
+  var today=new Date().toISOString().slice(0,10);
+  var h='<h3>今日の記録を追加</h3><div class="fld"><label>ベンチ先</label><select id="r_bench">'+opts+'</select></div>'
+    +fld("日付","r_date",today,"date","")
+    +fld("登録者数","r_subs","","number","例：2100")
+    +fld('直近30日の再生数 <span class="note">手動入力（自動化は後フェーズ）</span>',"r_views","","number","例：40200")
+    +'<div style="display:flex;gap:8px;margin-top:6px"><button class="gbtn" id="r_save" style="flex:1">記録する</button><button class="pill" id="r_cancel">キャンセル</button></div>';
+  openSheet(h);
+  document.getElementById("r_cancel").onclick=closeSheet;
+  document.getElementById("r_save").onclick=async()=>{
+    var id=val("r_bench"), date=val("r_date"), s=val("r_subs").trim(), v=val("r_views").trim();
+    if(!id){alert("ベンチ先を選んでください");return;} if(!date){alert("日付を入れてください");return;}
+    var st=trackStore(id); var row={date:date,subs:s,views:v};
+    var i=st.logs.findIndex(x=>x.date===date); if(i>=0)st.logs[i]=row; else st.logs.push(row);
+    await saveCloud(); closeSheet(); view="track"; render(); };
+}
+function editTrackSheet(id){
+  var b=benches.find(x=>x.id===id); var st=trackStore(id);
+  var sOpts=[["active","🟢 記録中"],["stalled","🟡 伸び止まり"],["stopped","⛔ 投稿停止"]].map(o=>'<option value="'+o[0]+'"'+(st.status===o[0]?" selected":"")+'>'+o[1]+'</option>').join("");
+  var rows=benchLogs(id).slice().reverse().map(l=>'<div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--line)"><span style="color:var(--muted)">'+esc(l.date)+'</span><span>登録 '+(num(l.subs)!=null?num(l.subs).toLocaleString():"–")+' ／ 再生 '+(num(l.views)!=null?num(l.views).toLocaleString():"–")+'</span></div>').join("")||'<div style="font-size:12px;color:var(--muted)">まだ記録がありません</div>';
+  var h='<h3>'+esc(b?b.name:"")+'</h3><div class="fld"><label>ステータス <span class="note">伸び止まり/停止にすると記録対象から外れ反面教師へ</span></label><select id="t_status">'+sOpts+'</select></div>'
+    +fld("原因メモ（伸び止まり・停止の理由）","t_cause",st.cause||"","textarea","例：量産で世界観が薄れた・サムネ刷新で失速")
+    +'<div class="fld"><label>記録した生データ</label><div style="max-height:170px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px 10px">'+rows+'</div></div>'
+    +'<div style="display:flex;gap:8px"><button class="gbtn" id="t_save" style="flex:1">保存</button><button class="pill" id="t_add">＋今日の記録</button><button class="pill" id="t_cancel">閉じる</button></div>';
+  openSheet(h);
+  document.getElementById("t_cancel").onclick=closeSheet;
+  document.getElementById("t_add").onclick=()=>addRecordSheet(id);
+  document.getElementById("t_save").onclick=async()=>{ st.status=val("t_status"); st.cause=val("t_cause").trim(); await saveCloud(); closeSheet(); render(); };
+}
+function exportTrackCSV(){
+  var rows=[["date","bench","subs","views"]];
+  benches.forEach(b=>benchLogs(b.id).forEach(l=>rows.push([l.date,b.name||"",l.subs||"",l.views||""])));
+  if(rows.length<2){ alert("まだ記録がありません"); return; }
+  var csv="﻿"+rows.map(r=>r.map(c=>'"'+String(c==null?"":c).replace(/"/g,'""')+'"').join(",")).join("\n");
+  var blob=new Blob([csv],{type:"text/csv;charset=utf-8"}), url=URL.createObjectURL(blob);
+  var a=document.createElement("a"); a.href=url; a.download="benchmark_log.csv"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
 /* ===== ステップ（キラ式ロードマップ：BGMセミナー動画準拠） =====
    公開リポジトリには「ステップ構造・やること・動画の該当時間リンク」だけを置く。
    キラさんの逐語の発言（有料セミナー本文）は載せない。リンクから本人が動画で確認する。 */
