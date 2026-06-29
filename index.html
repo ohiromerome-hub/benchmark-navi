@@ -15,6 +15,13 @@
   *{box-sizing:border-box} html,body{margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;background:var(--paper);color:var(--text);-webkit-font-smoothing:antialiased;line-height:1.5;}
   .app{max-width:760px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:var(--paper);position:relative}
+  body.wide-hub .app{max-width:1280px}
+  body.wide-hub nav{max-width:1280px}
+  @media(max-width:780px){body.wide-hub .app,body.wide-hub nav{max-width:760px}}
+  .gchartwrap{margin:10px 0 0 120px}
+  .gchartwrap .gcl{font-size:10.5px;color:var(--muted);margin-bottom:3px;font-weight:700}
+  .gchartwrap img{width:100%;border:1px solid var(--line);border-radius:10px;cursor:pointer;display:block;background:#0b1220}
+  @media(max-width:560px){.gchartwrap{margin-left:0}}
   header{position:sticky;top:0;z-index:20;background:var(--ink);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px}
   header .left{display:flex;flex-direction:column}
   header .brand{font-weight:800;letter-spacing:.02em;font-size:15px}
@@ -194,7 +201,7 @@ function goalReach(g){ var gv=goalViews(); var m=num(g.monthly); if(gv==null||m=
 function goalReachPill(g){ var r=goalReach(g); if(!r) return ''; var n=r.ratio, t=n>=1?('目標×'+(n>=10?Math.round(n):n.toFixed(1))):'目標未満'; return '<span class="grp '+(r.ok?'grp-ok':'grp-no')+'">🎯'+t+'</span>'; }
 function goalFormHTML(){ var a=goal.amount||'', r=goal.rpm||'2000', p=goal.purpose||''; return '<div class="mgoal"><div class="gfh">🎯 あなたの目標（数値で記録）</div><div class="gfr"><label>月収目標</label><div class="gfi"><span>¥</span><input id="g_amount" type="text" inputmode="numeric" value="'+esc(a)+'" placeholder="500000"></div></div><div class="gfr"><label>RPM（1000再生あたり）</label><div class="gfi"><span>¥</span><input id="g_rpm" type="text" inputmode="numeric" value="'+esc(r)+'" placeholder="2000"></div></div><div class="gfr gfp"><label>目的（なぜこの金額？）</label><textarea id="g_purpose" placeholder="この金額を達成したら叶えたい人生（例：会社を辞めて時間と場所に縛られない暮らし）">'+esc(p)+'</textarea></div><div class="gfo" id="g_out">'+goalOutHTML(goalViews())+'</div></div>'; }
 
-function render(){ if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="material")renderMaterial(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
+function render(){ document.body.classList.toggle("wide-hub",view==="genre"); if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="material")renderMaterial(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
 function renderMaterial(){
   $main.innerHTML='<div style="padding:4px 2px">'
    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><button id="matBack" class="pill">← ステップ</button><span style="font-size:16px;font-weight:800;color:var(--ink)">📚 セミナー資料</span><button id="matReload" class="pill" style="margin-left:auto">↻ 再読み込み</button></div>'
@@ -222,14 +229,21 @@ function renderGenre(){
   document.getElementById("addG").onclick=()=>editGenre(null);
   $main.querySelectorAll("[data-eg]").forEach(el=>el.onclick=e=>{if(e.target.classList.contains("url"))return;editGenre(el.getAttribute("data-eg"));});
 }
+function imgDownscale(file,maxW,q,cb){ var fr=new FileReader(); fr.onload=function(){ var im=new Image(); im.onload=function(){ var w=im.width,hh=im.height; if(w>maxW){ hh=Math.round(hh*maxW/w); w=maxW; } var c=document.createElement("canvas"); c.width=w; c.height=hh; c.getContext("2d").drawImage(im,0,0,w,hh); try{ cb(c.toDataURL("image/jpeg",q)); }catch(e){ alert("画像の処理に失敗: "+e.message); } }; im.onerror=function(){ alert("画像を読み込めませんでした"); }; im.src=fr.result; }; fr.readAsDataURL(file); }
 function editGenre(id){
   const g=id?genres.find(x=>x.id===id):{};
   const f={name:g.name||"",rep:g.rep||"",url:g.url||"",subs:g.subs||"",startYear:g.startYear||"",monthly:g.monthly||"",memo:g.memo||""};
-  let h='<h3>'+(id?"ジャンルを編集":"ジャンルを追加")+'</h3>'+goalBannerHTML()+fld("ジャンル名","g_name",f.name,"text","例：focus music")+fld("代表チャンネル名","g_rep",f.rep,"text","vidIQで確認した代表例")+fld("代表チャンネルURL","g_url",f.url,"url","https://www.youtube.com/@...")+'<div class="two">'+fld("登録者数（万）","g_subs",f.subs,"number","例：132")+fld("開始年（西暦）","g_year",f.startYear,"number","例：2010")+'</div>'+fld("月間再生数（万）","g_monthly",f.monthly,"number","例：300（=300万）")+'<div class="live" id="g_live"></div>'+fld("結論メモ","g_memo",f.memo,"textarea","このジャンルにするか／気づき")+'<div class="acts">'+(id?'<button class="del" id="g_del">削除</button>':'')+'<button class="cancel" id="g_cancel">閉じる</button><button class="save" id="g_save">保存</button></div>';
+  let gchart=g.chart||"";
+  let h='<h3>'+(id?"ジャンルを編集":"ジャンルを追加")+'</h3>'+goalBannerHTML()+fld("ジャンル名","g_name",f.name,"text","例：focus music")+fld("代表チャンネル名","g_rep",f.rep,"text","vidIQで確認した代表例")+fld("代表チャンネルURL","g_url",f.url,"url","https://www.youtube.com/@...")+'<div class="two">'+fld("登録者数（万）","g_subs",f.subs,"number","例：132")+fld("開始年（西暦）","g_year",f.startYear,"number","例：2010")+'</div>'+fld("月間再生数（万）","g_monthly",f.monthly,"number","例：300（=300万）")+'<div class="live" id="g_live"></div>'+fld("結論メモ","g_memo",f.memo,"textarea","このジャンルにするか／気づき")
+    +'<div class="fld"><label>📈 vidIQグラフ画像 <span class="note">代表chの「Views gained」等のスクショ。長期安定の証拠に</span></label><div id="g_chart_prev" style="margin-bottom:6px">'+(gchart?'<img src="'+gchart+'" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0b1220">':'<span style="font-size:12px;color:var(--muted)">未登録</span>')+'</div><input type="file" id="g_chart_file" accept="image/*"> <button type="button" class="pill" id="g_chart_clear" style="background:#eef0f4;color:#555">クリア</button></div>'
+    +'<div class="acts">'+(id?'<button class="del" id="g_del">削除</button>':'')+'<button class="cancel" id="g_cancel">閉じる</button><button class="save" id="g_save">保存</button></div>';
   openSheet(h);
+  var setChartPrev=function(){ var p=document.getElementById("g_chart_prev"); if(p) p.innerHTML=gchart?'<img src="'+gchart+'" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0b1220">':'<span style="font-size:12px;color:var(--muted)">未登録</span>'; };
+  document.getElementById("g_chart_file").onchange=function(e){ var file=e.target.files&&e.target.files[0]; if(!file)return; imgDownscale(file,900,0.78,function(d){ gchart=d; setChartPrev(); }); };
+  document.getElementById("g_chart_clear").onclick=function(){ gchart=""; setChartPrev(); };
   const liveCalc=()=>{const sy=num(val("g_year")),mv=num(val("g_monthly"));const L=document.getElementById("g_live");if(sy==null||mv==null){L.textContent="";return;}const ok=(nowY-sy>=2)&&(mv>=100);L.innerHTML=ok?'<span style="color:var(--good)">◎ 稼げる（継続'+(nowY-sy)+'年・月間'+mv+'万）</span>':'<span style="color:var(--warn)">要確認（基準：継続2年以上＋月間100万以上）</span>';};
   document.getElementById("g_year").oninput=liveCalc; document.getElementById("g_monthly").oninput=liveCalc; liveCalc();
-  document.getElementById("g_save").onclick=async()=>{ const obj={id:id||uid(),name:val("g_name").trim(),rep:val("g_rep").trim(),url:val("g_url").trim(),subs:val("g_subs").trim(),startYear:val("g_year").trim(),monthly:val("g_monthly").trim(),memo:val("g_memo").trim()};
+  document.getElementById("g_save").onclick=async()=>{ const obj={id:id||uid(),name:val("g_name").trim(),rep:val("g_rep").trim(),url:val("g_url").trim(),subs:val("g_subs").trim(),startYear:val("g_year").trim(),monthly:val("g_monthly").trim(),memo:val("g_memo").trim(),chart:gchart};
     if(!obj.name){alert("ジャンル名を入れてください");return;} genres=id?genres.map(x=>x.id===id?obj:x):genres.concat([obj]); await saveCloud(); closeSheet(); render(); };
   if(id)document.getElementById("g_del").onclick=async()=>{ if(!confirm("このジャンルを削除しますか？（紐づくベンチ先は未設定に戻ります）"))return; genres=genres.filter(x=>x.id!==id); benches=benches.map(b=>b.genreId===id?{...b,genreId:""}:b); await saveCloud(); closeSheet(); render(); };
   document.getElementById("g_cancel").onclick=closeSheet;
@@ -270,7 +284,7 @@ function renderHub(){
     var gbg=ok===true?'#15213e':'#42506e';
     var meta=[g.rep?esc(g.rep):'', num(g.startYear)!=null?esc(g.startYear)+'〜':'', num(g.monthly)!=null?'月間'+num(g.monthly)+'万':''].filter(Boolean).join('・')||'代表ch・継続年数 未入力';
     var kids=benches.filter(b=>b.genreId===g.id);
-    h+='<div style="display:flex;align-items:stretch;margin-bottom:16px">'
+    h+='<div style="margin-bottom:16px"><div style="display:flex;align-items:stretch">'
       +'<div class="tap" data-eg="'+g.id+'" style="align-self:center;min-width:106px;max-width:106px;background:'+gbg+';color:#fff;border-radius:12px;padding:9px 10px">'
         +'<div style="font-size:12px;font-weight:700">'+(ok===true?'◎':'…')+' '+esc(g.name||"(無名)")+'</div>'
         +'<div style="margin-top:3px">'+gbadge+'</div>'
@@ -288,6 +302,8 @@ function renderHub(){
     else { h+='<div style="display:flex;align-items:center;margin:7px 0"><div style="width:14px;height:2px;background:#bcc8da;flex:none"></div><div style="font-size:11px;color:#b67613;font-weight:600">↳ 手本未登録 — 今伸びてるchを探そう</div></div>'; }
     h+='<div style="display:flex;align-items:center;margin:7px 0"><div style="width:14px;height:2px;background:#bcc8da;flex:none"></div><div class="tap" data-addb="'+g.id+'" style="font-size:11px;color:#2f63e6;font-weight:500">＋ 手本を追加</div></div>';
     h+='</div></div>';
+    if(g.chart) h+='<div class="gchartwrap"><div class="gcl">📈 vidIQ（代表ch '+esc(g.rep||g.name||"")+'）— 長期間 稼ぎ続けてるかの証拠</div><img src="'+g.chart+'" data-chartview="'+g.id+'" alt="vidIQ"></div>';
+    h+='</div>';
   });
   var orphans=benches.filter(b=>!b.genreId||!genreName(b.genreId));
   if(orphans.length){ h+='<div style="background:#fbf0d8;border:1px solid #f0d9a8;border-radius:12px;padding:10px 12px;margin-top:6px"><div style="font-size:12px;font-weight:700;color:#b67613;margin-bottom:6px">ジャンル未設定の手本 '+orphans.length+'件</div>';
@@ -298,6 +314,7 @@ function renderHub(){
   $main.querySelectorAll("[data-eg]").forEach(el=>el.onclick=()=>editGenre(el.getAttribute("data-eg")));
   $main.querySelectorAll("[data-eb]").forEach(el=>el.onclick=()=>editBench(el.getAttribute("data-eb")));
   $main.querySelectorAll("[data-addb]").forEach(el=>el.onclick=()=>editBench(null,el.getAttribute("data-addb")));
+  $main.querySelectorAll("[data-chartview]").forEach(el=>el.onclick=()=>{ var gg=genres.find(x=>x.id===el.getAttribute("data-chartview")); if(gg&&gg.chart) openSheet('<h3>📈 vidIQ（'+esc(gg.rep||gg.name||"")+'）</h3><img src="'+gg.chart+'" style="width:100%;border:1px solid var(--line);border-radius:10px;background:#0b1220"><div style="display:flex;margin-top:10px"><button class="cancel" id="cv_close" style="flex:1">閉じる</button></div>'); var cb=document.getElementById("cv_close"); if(cb)cb.onclick=closeSheet; });
 }
 function renderMap(){
   const profitable=genres.filter(g=>genreOK(g)===true).length;
