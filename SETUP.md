@@ -7,7 +7,11 @@
 1. Firebase でデータの保管先を作る（同期のため）
 2. アプリに Firebase のキーを貼る
 3. GitHub にコードを置く（スマホから改修できる場所）
-4. Netlify で公開し、GitHub と自動連携する（改修が即反映）
+4. GitHub Pages で公開する（push＝即反映）
+
+> ⚠️ **本番は GitHub Pages に一本化**。公開URLは
+> **https://ohiromerome-hub.github.io/benchmark-navi/**
+> （以前あった `*.netlify.app` は古い版なので使わない。混乱の元なので削除推奨）
 
 ---
 
@@ -77,35 +81,37 @@ const firebaseConfig = {
 
 ---
 
-## STEP 4：Netlify で公開＋自動連携
+## STEP 4：GitHub Pages で公開する
 
-1. https://www.netlify.com に GitHub アカウントでログイン（無料）
-2. 「Add new site」→「Import an existing project」→「GitHub」を選ぶ
-3. STEP3 のリポジトリを選択 → そのまま「Deploy」
-4. 数十秒で `https://〇〇.netlify.app` のURLが発行されます
+1. STEP3 のリポジトリ（`ohiromerome-hub/benchmark-navi`）を開く
+2. 「Settings」→ 左メニュー「Pages」
+3. 「Build and deployment」→ Source =「Deploy from a branch」
+4. Branch =「main」/ フォルダ =「/(root)」→「Save」
+5. 数十秒〜数分で `https://ohiromerome-hub.github.io/benchmark-navi/` が公開されます
 
 ### Firebase 側に公開URLを許可
-5. Firebase の「Authentication」→「Settings」→「承認済みドメイン」に
-   発行された `〇〇.netlify.app` を追加（これでログインが通ります）
+6. Firebase の「Authentication」→「Settings」→「承認済みドメイン」に
+   `ohiromerome-hub.github.io` を追加（これでログインが通ります）
 
-### 自動連携の確認
-- 以後、GitHub の `index.html` を編集してコミットすると、
-  Netlify が自動で公開サイトを更新します。
-- つまり「スマホで GitHub のコードを直す → 数十秒後に公開アプリへ反映」。
+### 自動反映の確認
+- 以後、`index.html` を編集して **main に push** すると、
+  GitHub Pages が自動で公開サイトを更新します（数十秒〜数分）。
+- つまり「コードを直して push → 公開アプリへ反映」。
 
 ---
 
 ## できあがり
 
-- 公開URL（`〇〇.netlify.app`）を PC・スマホのブラウザでブックマーク
-- 両方で同じ Google アカウントでログイン → データが同期
-- アプリを直したくなったら、GitHub の `index.html` を編集（スマホ可）
+- 公開URL **https://ohiromerome-hub.github.io/benchmark-navi/** を PC・スマホでブックマーク
+- 両方で同じ Google アカウントでログイン → データが同期（同じFirebase）
+- アプリを直したくなったら、`index.html` を編集して push（スマホ可）
 
 ## 改修を私（Claude）に頼むとき
-新しいコードをお渡しするので、GitHub の `index.html` の中身を
-それで置き換えて（全選択→貼り付け→コミット）ください。自動で公開に反映されます。
+Claude が `index.html` を直して main に push します。GitHub Pages が自動で反映。
+（※ 旧 `*.netlify.app` には反映されません。本番は GitHub Pages 一本）
 
 ## つまずいたら
-- ログインできない → STEP4-5 の「承認済みドメイン」追加を確認
+- ログインできない → STEP4-6 の「承認済みドメイン（ohiromerome-hub.github.io）」追加を確認
 - データが出ない → 同じ Google アカウントでログインしているか確認、STEP1-5 のルール公開を確認
 - 画面が真っ白 → STEP2 のキーの貼り間違い（カンマや引用符）を確認
+- 古いUIが出る → `*.netlify.app` を開いていないか確認。本番は github.io の方
