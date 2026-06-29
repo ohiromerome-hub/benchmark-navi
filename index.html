@@ -499,12 +499,14 @@ function trackCard(e){
     var dCol=d==null?'var(--muted)':(d>0?'var(--good)':(d<0?'#d23b3b':'var(--muted)'));
     strip+='<div style="min-width:54px;text-align:center;padding:2px;border-left:1px solid var(--line)"><div style="font-size:9px;color:var(--muted)">'+esc(l.date.slice(5).replace('-','/'))+'</div><div style="font-size:12px;margin-top:3px'+(i===logs.length-1?';font-weight:700':'')+'">'+(cur!=null?cur.toLocaleString():'–')+'</div><div style="font-size:9px;color:'+dCol+'">'+dStr+'</div></div>'; });
   if(!logs.length) strip='<div style="font-size:11px;color:var(--muted);padding:10px 8px">記録なし — ＋記録から追加</div>';
+  var yt=b.url?'<a class="ytlink" href="'+esc(b.url)+'" target="_blank" rel="noopener" style="font-size:10.5px;color:#c33;text-decoration:none;font-weight:700;border:1px solid #f3c0c0;border-radius:20px;padding:2px 8px;white-space:nowrap">▶ YouTube↗</a>':'';
   return '<div class="card tap" data-et="'+b.id+'" style="padding:11px 12px;margin-bottom:10px">'
-    +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:9px"><span style="width:8px;height:8px;border-radius:50%;background:'+dot+';display:inline-block;flex:none"></span><span style="font-size:14px;font-weight:700">'+esc(b.name||"(無名のch)")+'</span>'+convStr+'<span style="margin-left:auto">'+badge+'</span></div>'
+    +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:9px"><span style="width:8px;height:8px;border-radius:50%;background:'+dot+';display:inline-block;flex:none"></span><span style="font-size:14px;font-weight:700">'+esc(b.name||"(無名のch)")+'</span>'+convStr+'<span style="margin-left:auto;display:flex;align-items:center;gap:7px">'+yt+badge+'</span></div>'
     +'<div style="display:flex;gap:8px;align-items:stretch">'+trackSpark(vals,110,58,color)+'<div class="strip" style="flex:1;overflow-x:auto"><div style="display:flex;height:100%">'+strip+'</div></div></div></div>'; }
 function trackDeadCard(e){ var b=e.b;
+  var yt=b.url?'<a class="ytlink" href="'+esc(b.url)+'" target="_blank" rel="noopener" style="font-size:10.5px;color:#b3261e;text-decoration:none;font-weight:700;border:1px solid #e3a6a6;border-radius:20px;padding:2px 8px;white-space:nowrap">▶ YouTube↗</a>':'';
   return '<div class="card tap" data-et="'+b.id+'" style="padding:11px 12px;margin-bottom:10px;background:#fdecec;border-color:#f3c0c0">'
-    +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><span style="font-size:14px;font-weight:700;color:#b3261e">👻 '+esc(b.name||"(無名のch)")+'</span><span style="margin-left:auto;font-size:10px;color:#b3261e">反面教師·停止</span></div>'
+    +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><span style="font-size:14px;font-weight:700;color:#b3261e">👻 '+esc(b.name||"(無名のch)")+'</span><span style="margin-left:auto;display:flex;align-items:center;gap:7px">'+yt+'<span style="font-size:10px;color:#b3261e">反面教師·停止</span></span></div>'
     +'<div style="font-size:11px;color:#b3261e;line-height:1.6">'+(e.st.cause?esc(e.st.cause):'原因メモ未記入（タップして記入）')+'</div></div>'; }
 function renderTrack(){
   let h='<div class="view-title"><h2>推移</h2><button class="addbtn" id="tAdd">＋ 記録</button></div>';
@@ -524,18 +526,21 @@ function bindTrack(){
   var a=document.getElementById("tAdd"); if(a)a.onclick=()=>addRecordSheet(null);
   var c=document.getElementById("tCsv"); if(c)c.onclick=exportTrackCSV;
   $main.querySelectorAll("[data-m]").forEach(btn=>btn.onclick=()=>{ trackMetric=btn.getAttribute("data-m"); renderTrack(); });
-  $main.querySelectorAll("[data-et]").forEach(el=>el.onclick=()=>editTrackSheet(el.getAttribute("data-et")));
+  $main.querySelectorAll("[data-et]").forEach(el=>el.onclick=(e)=>{ if(e.target.closest&&e.target.closest(".ytlink"))return; editTrackSheet(el.getAttribute("data-et")); });
   $main.querySelectorAll(".strip").forEach(s=>{ s.scrollLeft=s.scrollWidth; }); }
 function addRecordSheet(presetId){
   if(!benches.length){ alert("先に「ベンチ先」を登録してください"); return; }
   var opts=benches.map(b=>'<option value="'+b.id+'"'+(presetId===b.id?" selected":"")+'>'+esc(b.name||"(無名のch)")+'</option>').join("");
   var today=new Date().toISOString().slice(0,10);
-  var h='<h3>今日の記録を追加</h3><div class="fld"><label>ベンチ先</label><select id="r_bench">'+opts+'</select></div>'
+  var h='<h3>今日の記録を追加</h3><div class="fld"><label>ベンチ先</label><select id="r_bench">'+opts+'</select><a id="r_yt" href="#" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;font-size:12px;color:#c33;font-weight:700;text-decoration:none">▶ このチャンネルをYouTubeで開く↗</a></div>'
     +fld("日付","r_date",today,"date","")
     +fld("登録者数","r_subs","","number","例：2100")
     +fld('直近30日の再生数 <span class="note">手動入力（自動化は後フェーズ）</span>',"r_views","","number","例：40200")
     +'<div style="display:flex;gap:8px;margin-top:6px"><button class="gbtn" id="r_save" style="flex:1">記録する</button><button class="pill" id="r_cancel">キャンセル</button></div>';
   openSheet(h);
+  var rYt=document.getElementById("r_yt"), rSel=document.getElementById("r_bench");
+  var setYt=function(){ var bb=benches.find(x=>x.id===rSel.value); if(bb&&bb.url){ rYt.href=bb.url; rYt.style.display="inline-block"; } else { rYt.style.display="none"; } };
+  rSel.onchange=setYt; setYt();
   document.getElementById("r_cancel").onclick=closeSheet;
   document.getElementById("r_save").onclick=async()=>{
     var id=val("r_bench"), date=val("r_date"), s=val("r_subs").trim(), v=val("r_views").trim();
