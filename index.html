@@ -140,7 +140,7 @@ const configured = !String(firebaseConfig.apiKey).startsWith("PASTE_");
 let auth=null, db=null, user=null;
 if(configured){ const fapp=initializeApp(firebaseConfig); auth=getAuth(fapp); db=getFirestore(fapp); }
 
-let genres=[], benches=[], qas=[], steps={}, daily={}, goal={}, tracklog={}, view="genre";
+let genres=[], benches=[], qas=[], steps={}, daily={}, goal={}, tracklog={}, kaizen=[], view="genre";
 let trackMetric="subs";
 const $main=document.getElementById("main"), $auth=document.getElementById("auth"), $scrim=document.getElementById("scrim"), $sheet=document.getElementById("sheet");
 const nowY=new Date().getFullYear();
@@ -178,12 +178,12 @@ if(configured){
 function userRef(){ return doc(db,"users",user.uid); }
 async function loadCloud(){
   try{ const snap=await getDoc(userRef());
-    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; goal=d.goal||{}; tracklog=d.tracklog||{}; }
-    else { genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; tracklog={}; await saveCloud(); }
-  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; tracklog={}; }
+    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; goal=d.goal||{}; tracklog=d.tracklog||{}; kaizen=d.kaizen||[]; }
+    else { genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; tracklog={}; kaizen=[]; await saveCloud(); }
+  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; tracklog={}; kaizen=[]; }
 }
 async function saveCloud(){ if(!user)return;
-  try{ await setDoc(userRef(),{genres,benches,qas,steps,daily,goal,tracklog,updatedAt:Date.now()},{merge:true}); }
+  try{ await setDoc(userRef(),{genres,benches,qas,steps,daily,goal,tracklog,kaizen,updatedAt:Date.now()},{merge:true}); }
   catch(e){ console.error(e); alert("保存でエラー: "+e.message); }
 }
 
@@ -200,7 +200,7 @@ function goalReach(g){ var gv=goalViews(); var m=num(g.monthly); if(gv==null||m=
 function goalReachPill(g){ var r=goalReach(g); if(!r) return ''; var n=r.ratio, t=n>=1?('目標×'+(n>=10?Math.round(n):n.toFixed(1))):'目標未満'; return '<span class="grp '+(r.ok?'grp-ok':'grp-no')+'">🎯'+t+'</span>'; }
 function goalFormHTML(){ var a=goal.amount||'', r=goal.rpm||'2000', p=goal.purpose||''; return '<div class="mgoal"><div class="gfh">🎯 あなたの目標（数値で記録）</div><div class="gfr"><label>月収目標</label><div class="gfi"><span>¥</span><input id="g_amount" type="text" inputmode="numeric" value="'+esc(a)+'" placeholder="500000"></div></div><div class="gfr"><label>RPM（1000再生あたり）</label><div class="gfi"><span>¥</span><input id="g_rpm" type="text" inputmode="numeric" value="'+esc(r)+'" placeholder="2000"></div></div><div class="gfr gfp"><label>目的（なぜこの金額？）</label><textarea id="g_purpose" placeholder="この金額を達成したら叶えたい人生（例：会社を辞めて時間と場所に縛られない暮らし）">'+esc(p)+'</textarea></div><div class="gfo" id="g_out">'+goalOutHTML(goalViews())+'</div></div>'; }
 
-function render(){ document.body.classList.toggle("wide-hub",view==="genre"); if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="material")renderMaterial(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
+function render(){ document.body.classList.toggle("wide-hub",view==="genre"); if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="kaizen")renderKaizen(); else if(view==="material")renderMaterial(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
 function renderMaterial(){
   $main.innerHTML='<div style="padding:4px 2px">'
    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><button id="matBack" class="pill">← ステップ</button><span style="font-size:16px;font-weight:800;color:var(--ink)">📚 セミナー資料</span><button id="matReload" class="pill" style="margin-left:auto">↻ 再読み込み</button></div>'
@@ -524,7 +524,7 @@ function trackDeadCard(e){ var b=e.b;
 function renderTrack(){
   let h='<div class="view-title"><h2>推移</h2><button class="addbtn" id="tAdd">＋ 記録</button></div>';
   const tg=(k,lb)=>'<button data-m="'+k+'" style="font-size:11px;border:1px solid var(--line);border-radius:20px;padding:4px 12px;cursor:pointer;'+(trackMetric===k?'background:var(--link);color:#fff;border-color:var(--link)':'background:#fff;color:var(--muted)')+'">'+lb+'</button>';
-  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px"><div style="display:flex;gap:5px">'+tg("subs","登録者")+tg("views","再生")+'</div><button class="pill" id="tCsv">⬇ CSV</button></div>';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px;gap:8px;flex-wrap:wrap"><div style="display:flex;gap:5px">'+tg("subs","登録者")+tg("views","再生")+'</div><div style="display:flex;gap:6px"><button class="pill" id="tKaizen" style="background:#f6f2fc;color:#7a52c4;border:1px solid #d9c9f4">📝 改善ログ</button><button class="pill" id="tCsv">⬇ CSV</button></div></div>';
   h+='<div style="font-size:12px;color:var(--muted);margin:0 2px 12px">転換率＝直近30日の登録者増÷再生数（1000再生あたり何人登録）。高い順＝真似すべき手本。グラフは常時表示・右の数字は日別（横スクロール）。</div>';
   if(!benches.length){ h+='<div class="empty"><div class="big">先に「ベンチ先」を登録</div><div class="small">「▲ベンチ先」タブで手本チャンネルを追加すると、ここで毎日の推移を記録できます。</div></div>'; $main.innerHTML=h; bindTrack(); return; }
   var entries=benches.map(b=>({b:b,st:trackStore(b.id),logs:benchLogs(b.id),conv:trackConv(b.id)}));
@@ -538,6 +538,7 @@ function renderTrack(){
 function bindTrack(){
   var a=document.getElementById("tAdd"); if(a)a.onclick=()=>addRecordSheet(null);
   var c=document.getElementById("tCsv"); if(c)c.onclick=exportTrackCSV;
+  var k=document.getElementById("tKaizen"); if(k)k.onclick=()=>{ view="kaizen"; render(); };
   $main.querySelectorAll("[data-m]").forEach(btn=>btn.onclick=()=>{ trackMetric=btn.getAttribute("data-m"); renderTrack(); });
   $main.querySelectorAll("[data-et]").forEach(el=>el.onclick=(e)=>{ if(e.target.closest&&e.target.closest(".ytlink"))return; editTrackSheet(el.getAttribute("data-et")); });
   $main.querySelectorAll(".strip").forEach(s=>{ s.scrollLeft=s.scrollWidth; }); }
@@ -582,6 +583,67 @@ function exportTrackCSV(){
   var csv="﻿"+rows.map(r=>r.map(c=>'"'+String(c==null?"":c).replace(/"/g,'""')+'"').join(",")).join("\n");
   var blob=new Blob([csv],{type:"text/csv;charset=utf-8"}), url=URL.createObjectURL(blob);
   var a=document.createElement("a"); a.href=url; a.download="benchmark_log.csv"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+/* ===== 改善ログ（自チャンネルのPDCA。書き出してClaudeと分析） ===== */
+function kaizenEff(){ return {good:"◎ 効いた",meh:"△ 微妙",bad:"✗ 効かず",wip:"? 検証中"}; }
+function kaizenSorted(){ return kaizen.slice().sort((a,b)=>(a.date<b.date?1:(a.date>b.date?-1:0))); }
+function renderKaizen(){
+  var EFF=kaizenEff();
+  var EFFSTYLE={good:"background:var(--good-bg);color:var(--good)",meh:"background:var(--warn-bg);color:var(--warn)",bad:"background:#fdecec;color:#b3261e",wip:"background:#eef2fa;color:#5f6b80"};
+  let h='<div style="padding:4px 2px">'
+   +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap"><button id="kBack" class="pill">← 推移</button><span style="font-size:16px;font-weight:800;color:var(--ink)">📝 改善ログ</span><span style="margin-left:auto;display:flex;gap:6px"><button class="pill" id="kAdd" style="background:#15213e;color:#fff">＋ 記録</button><button class="pill" id="kExport">⬇ 分析用に書き出し</button></span></div>'
+   +'<div style="font-size:11.5px;color:var(--muted);margin:0 2px 12px;line-height:1.5">何を改善→自chの数値→効いたか。書き出すとベンチの数値もセットで出るので「何がベンチと違う？」をClaudeと分析できます。</div>';
+  var list=kaizenSorted();
+  if(!list.length){ h+='<div class="empty"><div class="big">まだ改善の記録がありません</div><div class="small">「＋記録」で、今日変えたこと・自chの数値・結果を残そう。</div></div>'; }
+  else { list.forEach(k=>{ var eff=EFF[k.effect]||"";
+    h+='<div class="card tap" data-ek="'+k.id+'" style="padding:11px 12px;margin-bottom:9px">'
+      +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><span style="font-size:10px;color:var(--muted)">'+esc(k.date||"")+'</span>'+(k.target?'<span style="font-size:11px;color:var(--ink-soft);font-weight:500">'+esc(k.target)+'</span>':'')+'<span style="margin-left:auto;font-size:10px;'+(EFFSTYLE[k.effect]||"")+';padding:2px 8px;border-radius:20px;font-weight:700">'+esc(eff)+'</span></div>'
+      +'<div style="font-size:12.5px;line-height:1.6"><b style="font-weight:700">改善：</b>'+esc(k.change||"").replace(/\n/g,"<br>")+'</div>'
+      +(k.mydata?'<div style="font-size:11px;color:var(--ink-soft);line-height:1.6;margin-top:2px"><b style="font-weight:700">自chデータ：</b>'+esc(k.mydata).replace(/\n/g,"<br>")+'</div>':'')
+      +(k.result?'<div style="font-size:11px;color:var(--muted);line-height:1.6;margin-top:2px"><b style="font-weight:700">結果：</b>'+esc(k.result).replace(/\n/g,"<br>")+'</div>':'')
+      +'</div>';
+  }); }
+  h+='</div>'; $main.innerHTML=h;
+  document.getElementById("kBack").onclick=()=>{ view="track"; render(); };
+  document.getElementById("kAdd").onclick=()=>kaizenSheet(null);
+  document.getElementById("kExport").onclick=exportKaizen;
+  $main.querySelectorAll("[data-ek]").forEach(el=>el.onclick=()=>kaizenSheet(el.getAttribute("data-ek")));
+}
+function kaizenSheet(id){
+  var k=id?kaizen.find(x=>x.id===id):{};
+  var _d=new Date(),today=_d.getFullYear()+"-"+("0"+(_d.getMonth()+1)).slice(-2)+"-"+("0"+_d.getDate()).slice(-2);
+  var eopts=[["good","◎ 効いた"],["meh","△ 微妙"],["bad","✗ 効かず"],["wip","? 検証中"]].map(o=>'<option value="'+o[0]+'"'+((k.effect||"wip")===o[0]?" selected":"")+'>'+o[1]+'</option>').join("");
+  var h='<h3>'+(id?"改善ログを編集":"今日の改善を記録")+'</h3>'
+    +fld("日付","k_date",k.date||today,"date","")
+    +fld('対象 <span class="note">どの動画/領域か（任意）</span>',"k_target",k.target||"","text","例：自ch / Deep Focus #12 / 全体")
+    +fld('改善したこと <span class="note">今週・今日 変えたこと</span>',"k_change",k.change||"","textarea","例：サムネをベンチ(Flow365)に寄せて青基調＋大文字に")
+    +fld('自分のチャンネルのデータ <span class="note">CTR・維持率・登録者・再生など</span>',"k_mydata",k.mydata||"","textarea","例：CTR3.1%／維持率28%／登録者+5/日／直近30日2.1万再生")
+    +fld("結果・気づき","k_result",k.result||"","textarea","例：CTR3.1→4.4%（48h）。青系が効いた説")
+    +'<div class="fld"><label>効果</label><select id="k_effect">'+eopts+'</select></div>'
+    +'<div class="acts">'+(id?'<button class="del" id="k_del">削除</button>':'')+'<button class="cancel" id="k_cancel">閉じる</button><button class="save" id="k_save">保存</button></div>';
+  openSheet(h);
+  document.getElementById("k_cancel").onclick=closeSheet;
+  document.getElementById("k_save").onclick=async()=>{ var obj={id:id||uid(),date:val("k_date"),target:val("k_target").trim(),change:val("k_change").trim(),mydata:val("k_mydata").trim(),result:val("k_result").trim(),effect:val("k_effect")};
+    if(!obj.change){alert("「改善したこと」を入れてください");return;} kaizen=id?kaizen.map(x=>x.id===id?obj:x):kaizen.concat([obj]); await saveCloud(); closeSheet(); view="kaizen"; render(); };
+  if(id)document.getElementById("k_del").onclick=async()=>{ if(!confirm("この記録を削除しますか？"))return; kaizen=kaizen.filter(x=>x.id!==id); await saveCloud(); closeSheet(); view="kaizen"; render(); };
+}
+function kaizenDownload(text){ var blob=new Blob([text],{type:"text/plain;charset=utf-8"}), url=URL.createObjectURL(blob); var a=document.createElement("a"); a.href=url; a.download="kaizen_log.txt"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+function exportKaizen(){
+  if(!kaizen.length){ alert("まだ改善の記録がありません"); return; }
+  var EFF=kaizenEff(); var lines=["# 改善ログ（PDCA）— Claude分析用",""];
+  kaizenSorted().forEach(k=>{ lines.push("["+(k.date||"")+"] 効果:"+(EFF[k.effect]||"")+(k.target?" / 対象:"+k.target:""));
+    lines.push("  改善: "+(k.change||"").replace(/\n/g," "));
+    if(k.mydata) lines.push("  自chデータ: "+k.mydata.replace(/\n/g," "));
+    if(k.result) lines.push("  結果: "+k.result.replace(/\n/g," ")); lines.push(""); });
+  lines.push("# 現在のベンチマーク先（比較用・最新スナップショット）");
+  if(!benches.length) lines.push("（ベンチ先 未登録）");
+  benches.forEach(b=>{ var lg=benchLogs(b.id), last=lg[lg.length-1]; var st=tracklog[b.id]&&tracklog[b.id].status; var ms=monthsSince(b.open);
+    lines.push("- "+(b.name||"")+(genreName(b.genreId)?"（"+genreName(b.genreId)+"）":"")+"："+(last?("登録者"+(num(last.subs)!=null?num(last.subs).toLocaleString():"–")+"・直近30日再生"+(last.views||"–")):"記録なし")+(ms!=null?"・開設"+ms+"ヶ月":"")+(st==="stopped"?"・停止":"")); });
+  lines.push(""); lines.push("# 分析してほしいこと");
+  lines.push("私の改善ログ・自チャンネルの数値・ベンチマーク先の数値を見て、何がベンチと違うか／次にやるべき改善を教えて。");
+  var text=lines.join("\n");
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(function(){ alert("Claude分析用にコピーしました。Claudeに貼り付けてください。"); }).catch(function(){ kaizenDownload(text); }); }
+  else kaizenDownload(text);
 }
 /* ===== ステップ（キラ式ロードマップ：BGMセミナー動画準拠） =====
    公開リポジトリには「ステップ構造・やること・動画の該当時間リンク」だけを置く。
