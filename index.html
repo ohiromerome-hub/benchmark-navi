@@ -18,10 +18,9 @@
   body.wide-hub .app{max-width:1280px}
   body.wide-hub nav{max-width:1280px}
   @media(max-width:780px){body.wide-hub .app,body.wide-hub nav{max-width:760px}}
-  .gchartwrap{margin:10px 0 0 120px}
-  .gchartwrap .gcl{font-size:10.5px;color:var(--muted);margin-bottom:3px;font-weight:700}
-  .gchartwrap img{width:100%;border:1px solid var(--line);border-radius:10px;cursor:pointer;display:block;background:#0b1220}
-  @media(max-width:560px){.gchartwrap{margin-left:0}}
+  .gchartwrap{margin:0}
+  .gchartwrap .gcl{font-size:11px;color:var(--ink-soft);margin-bottom:4px;font-weight:700}
+  .gchartwrap img{width:100%;height:auto;border:1px solid var(--line);border-radius:10px;cursor:pointer;display:block;background:#0b1220}
   header{position:sticky;top:0;z-index:20;background:var(--ink);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px}
   header .left{display:flex;flex-direction:column}
   header .brand{font-weight:800;letter-spacing:.02em;font-size:15px}
@@ -297,7 +296,7 @@ function renderHub(){
     var gbg=ok===true?'#15213e':'#42506e';
     var meta=[g.rep?esc(g.rep):'', num(g.startYear)!=null?esc(g.startYear)+'〜':'', num(g.monthly)!=null?'月間'+num(g.monthly)+'万':''].filter(Boolean).join('・')||'代表ch・継続年数 未入力';
     var kids=benches.filter(b=>b.genreId===g.id);
-    h+='<div style="margin-bottom:16px"><div style="display:flex;align-items:stretch">'
+    h+='<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:18px"><div style="flex:1 1 380px;min-width:300px;max-width:720px"><div style="display:flex;align-items:stretch">'
       +'<div class="tap" data-eg="'+g.id+'" style="align-self:center;min-width:106px;max-width:106px;background:'+gbg+';color:#fff;border-radius:12px;padding:9px 10px">'
         +'<div style="font-size:12px;font-weight:700">'+(ok===true?'◎':'…')+' '+esc(g.name||"(無名)")+'</div>'
         +'<div style="margin-top:3px">'+gbadge+'</div>'
@@ -314,8 +313,8 @@ function renderHub(){
     }); }
     else { h+='<div style="display:flex;align-items:center;margin:7px 0"><div style="width:14px;height:2px;background:#bcc8da;flex:none"></div><div style="font-size:11px;color:#b67613;font-weight:600">↳ 手本未登録 — 今伸びてるchを探そう</div></div>'; }
     h+='<div style="display:flex;align-items:center;margin:7px 0"><div style="width:14px;height:2px;background:#bcc8da;flex:none"></div><div class="tap" data-addb="'+g.id+'" style="font-size:11px;color:#2f63e6;font-weight:500">＋ 手本を追加</div></div>';
-    h+='</div></div>';
-    if(g.chart) h+='<div class="gchartwrap"><div class="gcl">📈 vidIQ（代表ch '+esc(g.rep||g.name||"")+'）— 長期間 稼ぎ続けてるかの証拠</div><img src="'+g.chart+'" data-chartview="'+g.id+'" alt="vidIQ"></div>';
+    h+='</div></div></div>';
+    if(g.chart) h+='<div class="gchartwrap" style="flex:1 1 320px;min-width:280px;max-width:560px"><div class="gcl">📈 vidIQ（'+esc(g.rep||g.name||"")+'）<span style="color:var(--muted);font-weight:400">— 長期安定の証拠</span></div><img src="'+g.chart+'" data-chartview="'+g.id+'" alt="vidIQ"></div>';
     h+='</div>';
   });
   var orphans=benches.filter(b=>!b.genreId||!genreName(b.genreId));
