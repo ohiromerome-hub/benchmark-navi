@@ -235,11 +235,20 @@ function editGenre(id){
   const f={name:g.name||"",rep:g.rep||"",url:g.url||"",subs:g.subs||"",startYear:g.startYear||"",monthly:g.monthly||"",memo:g.memo||""};
   let gchart=g.chart||"";
   let h='<h3>'+(id?"ジャンルを編集":"ジャンルを追加")+'</h3>'+goalBannerHTML()+fld("ジャンル名","g_name",f.name,"text","例：focus music")+fld("代表チャンネル名","g_rep",f.rep,"text","vidIQで確認した代表例")+fld("代表チャンネルURL","g_url",f.url,"url","https://www.youtube.com/@...")+'<div class="two">'+fld("登録者数（万）","g_subs",f.subs,"number","例：132")+fld("開始年（西暦）","g_year",f.startYear,"number","例：2010")+'</div>'+fld("月間再生数（万）","g_monthly",f.monthly,"number","例：300（=300万）")+'<div class="live" id="g_live"></div>'+fld("結論メモ","g_memo",f.memo,"textarea","このジャンルにするか／気づき")
-    +'<div class="fld"><label>📈 vidIQグラフ画像 <span class="note">代表chの「Views gained」等のスクショ。長期安定の証拠に</span></label><div id="g_chart_prev" style="margin-bottom:6px">'+(gchart?'<img src="'+gchart+'" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0b1220">':'<span style="font-size:12px;color:var(--muted)">未登録</span>')+'</div><input type="file" id="g_chart_file" accept="image/*"> <button type="button" class="pill" id="g_chart_clear" style="background:#eef0f4;color:#555">クリア</button></div>'
+    +'<div class="fld"><label>📈 vidIQグラフ画像 <span class="note">代表chの「Views gained」波形。ドラッグ＆ドロップ／Cmd+V貼付け／クリックで選択</span></label><div id="g_chart_drop" style="border:2px dashed var(--line);border-radius:10px;padding:16px;text-align:center;cursor:pointer;background:#fbfcfe;color:var(--muted);font-size:12px">'+(gchart?'<img src="'+gchart+'" style="max-width:100%;border-radius:8px;background:#0b1220;display:block;margin:0 auto">':'ここに画像をドラッグ＆ドロップ<br>または Cmd+V で貼り付け<br>（クリックで選択も可）')+'</div><input type="file" id="g_chart_file" accept="image/*" style="display:none"> <button type="button" class="pill" id="g_chart_clear" style="background:#eef0f4;color:#555;margin-top:6px">クリア</button></div>'
     +'<div class="acts">'+(id?'<button class="del" id="g_del">削除</button>':'')+'<button class="cancel" id="g_cancel">閉じる</button><button class="save" id="g_save">保存</button></div>';
   openSheet(h);
-  var setChartPrev=function(){ var p=document.getElementById("g_chart_prev"); if(p) p.innerHTML=gchart?'<img src="'+gchart+'" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#0b1220">':'<span style="font-size:12px;color:var(--muted)">未登録</span>'; };
-  document.getElementById("g_chart_file").onchange=function(e){ var file=e.target.files&&e.target.files[0]; if(!file)return; imgDownscale(file,900,0.78,function(d){ gchart=d; setChartPrev(); }); };
+  var setChartPrev=function(){ var d=document.getElementById("g_chart_drop"); if(d) d.innerHTML=gchart?'<img src="'+gchart+'" style="max-width:100%;border-radius:8px;background:#0b1220;display:block;margin:0 auto">':'ここに画像をドラッグ＆ドロップ<br>または Cmd+V で貼り付け<br>（クリックで選択も可）'; };
+  var takeImg=function(file){ if(file&&file.type&&file.type.indexOf("image")===0){ imgDownscale(file,900,0.78,function(d){ gchart=d; setChartPrev(); }); return true; } return false; };
+  var dz=document.getElementById("g_chart_drop"), fi=document.getElementById("g_chart_file");
+  dz.onclick=function(){ fi.click(); };
+  fi.onchange=function(e){ takeImg(e.target.files&&e.target.files[0]); };
+  dz.ondragover=function(e){ e.preventDefault(); dz.style.borderColor="#3a6df0"; };
+  dz.ondragleave=function(){ dz.style.borderColor="var(--line)"; };
+  dz.ondrop=function(e){ e.preventDefault(); dz.style.borderColor="var(--line)"; takeImg(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]); };
+  if(window._gchartPaste) document.removeEventListener("paste",window._gchartPaste);
+  window._gchartPaste=function(e){ if(!document.getElementById("g_chart_drop")){ document.removeEventListener("paste",window._gchartPaste); window._gchartPaste=null; return; } var items=e.clipboardData&&e.clipboardData.items; if(!items)return; for(var i=0;i<items.length;i++){ if(items[i].type.indexOf("image")===0){ var f=items[i].getAsFile(); if(f){ e.preventDefault(); takeImg(f); } break; } } };
+  document.addEventListener("paste",window._gchartPaste);
   document.getElementById("g_chart_clear").onclick=function(){ gchart=""; setChartPrev(); };
   const liveCalc=()=>{const sy=num(val("g_year")),mv=num(val("g_monthly"));const L=document.getElementById("g_live");if(sy==null||mv==null){L.textContent="";return;}const ok=(nowY-sy>=2)&&(mv>=100);L.innerHTML=ok?'<span style="color:var(--good)">◎ 稼げる（継続'+(nowY-sy)+'年・月間'+mv+'万）</span>':'<span style="color:var(--warn)">要確認（基準：継続2年以上＋月間100万以上）</span>';};
   document.getElementById("g_year").oninput=liveCalc; document.getElementById("g_monthly").oninput=liveCalc; liveCalc();
