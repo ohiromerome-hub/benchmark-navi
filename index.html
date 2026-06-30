@@ -544,7 +544,7 @@ function bindTrack(){
 function addRecordSheet(presetId){
   if(!benches.length){ alert("先に「ベンチ先」を登録してください"); return; }
   var opts=benches.map(b=>'<option value="'+b.id+'"'+(presetId===b.id?" selected":"")+'>'+esc(b.name||"(無名のch)")+'</option>').join("");
-  var today=new Date().toISOString().slice(0,10);
+  var _d=new Date(),today=_d.getFullYear()+"-"+("0"+(_d.getMonth()+1)).slice(-2)+"-"+("0"+_d.getDate()).slice(-2);
   var h='<h3>今日の記録を追加</h3><div class="fld"><label>ベンチ先</label><select id="r_bench">'+opts+'</select><a id="r_yt" href="#" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;font-size:12px;color:#c33;font-weight:700;text-decoration:none">▶ このチャンネルをYouTubeで開く↗</a></div>'
     +fld("日付","r_date",today,"date","")
     +fld("登録者数","r_subs","","number","例：2100")
