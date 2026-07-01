@@ -140,7 +140,7 @@ const configured = !String(firebaseConfig.apiKey).startsWith("PASTE_");
 let auth=null, db=null, user=null;
 if(configured){ const fapp=initializeApp(firebaseConfig); auth=getAuth(fapp); db=getFirestore(fapp); }
 
-let genres=[], benches=[], qas=[], steps={}, daily={}, goal={}, tracklog={}, kaizen=[], view="genre";
+let genres=[], benches=[], qas=[], steps={}, daily={}, goal={}, tracklog={}, kaizen=[], sunodl=[], view="genre";
 let trackMetric="subs";
 const $main=document.getElementById("main"), $auth=document.getElementById("auth"), $scrim=document.getElementById("scrim"), $sheet=document.getElementById("sheet");
 const nowY=new Date().getFullYear();
@@ -178,12 +178,12 @@ if(configured){
 function userRef(){ return doc(db,"users",user.uid); }
 async function loadCloud(){
   try{ const snap=await getDoc(userRef());
-    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; goal=d.goal||{}; tracklog=d.tracklog||{}; kaizen=d.kaizen||[]; }
-    else { genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; tracklog={}; kaizen=[]; await saveCloud(); }
-  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; tracklog={}; kaizen=[]; }
+    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; goal=d.goal||{}; tracklog=d.tracklog||{}; kaizen=d.kaizen||[]; sunodl=d.sunodl||[]; }
+    else { genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; tracklog={}; kaizen=[]; sunodl=[]; await saveCloud(); }
+  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; tracklog={}; kaizen=[]; sunodl=[]; }
 }
 async function saveCloud(){ if(!user)return;
-  try{ await setDoc(userRef(),{genres,benches,qas,steps,daily,goal,tracklog,kaizen,updatedAt:Date.now()},{merge:true}); }
+  try{ await setDoc(userRef(),{genres,benches,qas,steps,daily,goal,tracklog,kaizen,sunodl,updatedAt:Date.now()},{merge:true}); }
   catch(e){ console.error(e); alert("保存でエラー: "+e.message); }
 }
 
@@ -200,7 +200,7 @@ function goalReach(g){ var gv=goalViews(); var m=num(g.monthly); if(gv==null||m=
 function goalReachPill(g){ var r=goalReach(g); if(!r) return ''; var n=r.ratio, t=n>=1?('目標×'+(n>=10?Math.round(n):n.toFixed(1))):'目標未満'; return '<span class="grp '+(r.ok?'grp-ok':'grp-no')+'">🎯'+t+'</span>'; }
 function goalFormHTML(){ var a=goal.amount||'', r=goal.rpm||'2000', p=goal.purpose||''; return '<div class="mgoal"><div class="gfh">🎯 あなたの目標（数値で記録）</div><div class="gfr"><label>月収目標</label><div class="gfi"><span>¥</span><input id="g_amount" type="text" inputmode="numeric" value="'+esc(a)+'" placeholder="500000"></div></div><div class="gfr"><label>RPM（1000再生あたり）</label><div class="gfi"><span>¥</span><input id="g_rpm" type="text" inputmode="numeric" value="'+esc(r)+'" placeholder="2000"></div></div><div class="gfr gfp"><label>目的（なぜこの金額？）</label><textarea id="g_purpose" placeholder="この金額を達成したら叶えたい人生（例：会社を辞めて時間と場所に縛られない暮らし）">'+esc(p)+'</textarea></div><div class="gfo" id="g_out">'+goalOutHTML(goalViews())+'</div></div>'; }
 
-function render(){ document.body.classList.toggle("wide-hub",view==="genre"); if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="kaizen")renderKaizen(); else if(view==="material")renderMaterial(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
+function render(){ document.body.classList.toggle("wide-hub",view==="genre"); if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="kaizen")renderKaizen(); else if(view==="sunodl")renderSunoDL(); else if(view==="material")renderMaterial(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
 function renderMaterial(){
   $main.innerHTML='<div style="padding:4px 2px">'
    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><button id="matBack" class="pill">← ステップ</button><span style="font-size:16px;font-weight:800;color:var(--ink)">📚 セミナー資料</span><button id="matReload" class="pill" style="margin-left:auto">↻ 再読み込み</button></div>'
@@ -645,6 +645,45 @@ function exportKaizen(){
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(function(){ alert("Claude分析用にコピーしました。Claudeに貼り付けてください。"); }).catch(function(){ kaizenDownload(text); }); }
   else kaizenDownload(text);
 }
+/* ===== Suno DL 依頼（仕様を保存→Claudeに依頼文をコピー→Claudeが実行） ===== */
+function sunoReqText(r){ var mode=r.mode==="every"?"最新順で1つおき(2曲ごとに1曲)":"最新順で連続"; return "【Suno DL依頼】Sunoのライブラリ(suno.com/me)から、曲名「"+(r.title||"")+"」の曲を、"+mode+"に合計"+(r.count||0)+"曲、"+((r.format||"wav").toUpperCase())+"形式でダウンロードして。"; }
+function renderSunoDL(){
+  let h='<div style="padding:4px 2px">'
+   +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap"><button id="sBack" class="pill">← ステップ</button><span style="font-size:16px;font-weight:800;color:var(--ink)">🎵 Suno DL 依頼</span><span style="margin-left:auto"><button class="pill" id="sAdd" style="background:#15213e;color:#fff">＋ 依頼を作成</button></span></div>'
+   +'<div style="font-size:11.5px;color:var(--muted);margin:0 2px 12px;line-height:1.5">曲名・曲数・選び方・形式を保存。「Claudeに依頼」でコピー→Claudeに貼ると同じ条件でダウンロードします（アプリは依頼文を作るだけ・実行はClaude）。</div>';
+  if(!sunodl.length){ h+='<div class="empty"><div class="big">保存された依頼がありません</div><div class="small">「＋依頼を作成」で、曲名・曲数・形式を保存しておこう。</div></div>'; }
+  else { sunodl.forEach(r=>{
+    h+='<div class="card" style="padding:11px 12px;margin-bottom:9px">'
+      +'<div class="tap" data-es="'+r.id+'" style="margin-bottom:8px"><div style="font-size:14px;font-weight:700">🎵 「'+esc(r.title||"")+'」 ×'+(r.count||0)+'曲</div>'
+      +'<div style="font-size:11px;color:var(--muted);margin-top:2px">'+(r.mode==="every"?"最新順で1つおき":"最新順で連続")+' ／ '+((r.format||"wav").toUpperCase())+(r.memo?' ／ '+esc(r.memo):'')+'</div></div>'
+      +'<div style="display:flex;gap:6px"><button class="pill" data-sc="'+r.id+'" style="background:#15213e;color:#fff;flex:1">📋 Claudeに依頼（コピー）</button><button class="pill" data-se2="'+r.id+'">編集</button></div></div>';
+  }); }
+  h+='</div>'; $main.innerHTML=h;
+  document.getElementById("sBack").onclick=()=>{ view="step"; render(); };
+  document.getElementById("sAdd").onclick=()=>sunoSheet(null);
+  $main.querySelectorAll("[data-es]").forEach(el=>el.onclick=()=>sunoSheet(el.getAttribute("data-es")));
+  $main.querySelectorAll("[data-se2]").forEach(el=>el.onclick=()=>sunoSheet(el.getAttribute("data-se2")));
+  $main.querySelectorAll("[data-sc]").forEach(el=>el.onclick=()=>{ var r=sunodl.find(x=>x.id===el.getAttribute("data-sc")); if(!r)return; var t=sunoReqText(r);
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(function(){ alert("依頼文をコピーしました。Claudeに貼り付けてください。\n\n"+t); }).catch(function(){ prompt("この文をコピーしてClaudeに貼ってください:",t); }); }
+    else prompt("この文をコピーしてClaudeに貼ってください:",t); });
+}
+function sunoSheet(id){
+  var r=id?sunodl.find(x=>x.id===id):{};
+  var mopts=[["every","最新順で1つおき（2曲ごとに1曲）"],["seq","最新順で連続"]].map(o=>'<option value="'+o[0]+'"'+((r.mode||"every")===o[0]?" selected":"")+'>'+o[1]+'</option>').join("");
+  var fopts=[["wav","WAV（高音質）"],["mp3","MP3（軽い）"]].map(o=>'<option value="'+o[0]+'"'+((r.format||"wav")===o[0]?" selected":"")+'>'+o[1]+'</option>').join("");
+  var h='<h3>'+(id?"依頼を編集":"Suno DL 依頼を作成")+'</h3>'
+    +fld("曲名（Suno上のタイトル）","s_title",r.title||"","text","例：1")
+    +fld("曲数","s_count",(r.count!=null&&r.count!==0?r.count:"")+"","number","例：10")
+    +'<div class="fld"><label>選び方</label><select id="s_mode">'+mopts+'</select></div>'
+    +'<div class="fld"><label>形式</label><select id="s_format">'+fopts+'</select></div>'
+    +fld("メモ（任意）","s_memo",r.memo||"","text","例：Deep Focus用")
+    +'<div class="acts">'+(id?'<button class="del" id="s_del">削除</button>':'')+'<button class="cancel" id="s_cancel">閉じる</button><button class="save" id="s_save">保存</button></div>';
+  openSheet(h);
+  document.getElementById("s_cancel").onclick=closeSheet;
+  document.getElementById("s_save").onclick=async()=>{ var obj={id:id||uid(),title:val("s_title").trim(),count:num(val("s_count"))||0,mode:val("s_mode"),format:val("s_format"),memo:val("s_memo").trim()};
+    if(!obj.title){alert("曲名を入れてください");return;} sunodl=id?sunodl.map(x=>x.id===id?obj:x):sunodl.concat([obj]); await saveCloud(); closeSheet(); view="sunodl"; render(); };
+  if(id)document.getElementById("s_del").onclick=async()=>{ if(!confirm("この依頼を削除しますか？"))return; sunodl=sunodl.filter(x=>x.id!==id); await saveCloud(); closeSheet(); view="sunodl"; render(); };
+}
 /* ===== ステップ（キラ式ロードマップ：BGMセミナー動画準拠） =====
    公開リポジトリには「ステップ構造・やること・動画の該当時間リンク」だけを置く。
    キラさんの逐語の発言（有料セミナー本文）は載せない。リンクから本人が動画で確認する。 */
@@ -769,6 +808,7 @@ function renderStep(){
   h+='<div class="sthd">🚀 キラ式ロードマップ</div>';
   h+='<div class="stsub">BGMで稼ぐ全体の流れを8ステップに。タップで「キラさんの要点・やること」を開けます。各ステップの動画／スライドリンクから本人の説明をその場面で確認できます。</div>';
   h+='<button id="openMaterial" class="pill" style="margin:0 2px 12px;color:#3a6df0;border-color:#cfe0ff">📚 セミナー資料（スライド）を見る</button>';
+  h+='<button id="openSuno" class="pill" style="margin:0 2px 12px 6px;color:#7a52c4;border-color:#d9c9f4">🎵 Suno DL 依頼</button>';
   h+='<div class="stbar"><i style="width:'+pct+'%"></i></div>';
   h+='<div class="stbtxt">'+doneSteps+' / '+STEP_DATA.length+' ステップ完了（'+pct+'%）</div>';
   h+=dailyAside();
@@ -807,6 +847,7 @@ function renderStep(){
   h+='</div></div>';
   $main.innerHTML+=h;
   var om=document.getElementById('openMaterial'); if(om)om.onclick=()=>{ view='material'; render(); };
+  var os=document.getElementById('openSuno'); if(os)os.onclick=()=>{ view='sunodl'; render(); };
   // toggle open/close
   $main.querySelectorAll('.mhead').forEach(el=>el.onclick=()=>{ var id=el.getAttribute('data-tog'); steps[id]=steps[id]||{}; steps[id].open=!steps[id].open; renderStep(); });
   // checkbox
