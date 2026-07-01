@@ -142,6 +142,7 @@ if(configured){ const fapp=initializeApp(firebaseConfig); auth=getAuth(fapp); db
 
 let genres=[], benches=[], qas=[], steps={}, daily={}, goal={}, tracklog={}, kaizen=[], sunodl=[], view="genre";
 let trackMetric="subs";
+let sunoAutoEdit=false;
 const $main=document.getElementById("main"), $auth=document.getElementById("auth"), $scrim=document.getElementById("scrim"), $sheet=document.getElementById("sheet");
 const nowY=new Date().getFullYear();
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -666,6 +667,7 @@ function renderSunoDL(){
   $main.querySelectorAll("[data-sc]").forEach(el=>el.onclick=()=>{ var r=sunodl.find(x=>x.id===el.getAttribute("data-sc")); if(!r)return; var t=sunoReqText(r);
     if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(function(){ alert("依頼文をコピーしました。Claudeに貼り付けてください。\n\n"+t); }).catch(function(){ prompt("この文をコピーしてClaudeに貼ってください:",t); }); }
     else prompt("この文をコピーしてClaudeに貼ってください:",t); });
+  if(sunoAutoEdit){ sunoAutoEdit=false; if(sunodl.length) sunoSheet(sunodl[sunodl.length-1].id); else sunoSheet(null); }
 }
 function sunoSheet(id){
   var r=id?sunodl.find(x=>x.id===id):{};
@@ -847,7 +849,7 @@ function renderStep(){
   h+='</div></div>';
   $main.innerHTML+=h;
   var om=document.getElementById('openMaterial'); if(om)om.onclick=()=>{ view='material'; render(); };
-  var os=document.getElementById('openSuno'); if(os)os.onclick=()=>{ view='sunodl'; render(); };
+  var os=document.getElementById('openSuno'); if(os)os.onclick=()=>{ sunoAutoEdit=true; view='sunodl'; render(); };
   // toggle open/close
   $main.querySelectorAll('.mhead').forEach(el=>el.onclick=()=>{ var id=el.getAttribute('data-tog'); steps[id]=steps[id]||{}; steps[id].open=!steps[id].open; renderStep(); });
   // checkbox
