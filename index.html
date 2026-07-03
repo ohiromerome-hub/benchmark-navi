@@ -128,7 +128,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 /* ▼▼▼ ここを自分のFirebaseの値に差し替える（手順.md参照）▼▼▼ */
 const firebaseConfig = {
@@ -155,8 +155,9 @@ const val=id=>{const el=document.getElementById(id);return el?el.value:"";};
 
 function renderAuth(){
   if(!configured){ $auth.innerHTML='<span style="color:#aebbd6">未設定</span>'; return; }
-  if(user){ $auth.innerHTML='<span class="who">'+esc(user.email||user.displayName||"ログイン中")+'</span><button class="pill" id="logout">ログアウト</button>';
+  if(user){ $auth.innerHTML='<span class="who">'+esc(user.email||user.displayName||"ログイン中")+'</span><button class="pill" id="gear" title="バックアップ">⚙</button><button class="pill" id="logout">ログアウト</button>';
     document.getElementById("logout").onclick=()=>signOut(auth);
+    document.getElementById("gear").onclick=openBackupSheet;
   }else{ $auth.innerHTML='<button class="pill" id="login">ログイン</button>'; document.getElementById("login").onclick=doLogin; }
 }
 let signingIn=false;
@@ -180,16 +181,70 @@ if(configured){
 }else{ renderAuth(); renderGate(); }
 
 function userRef(){ return doc(db,"users",user.uid); }
+/* ===== データ保護（商用化 2026-07-04）=====
+   loadFailed: 読込失敗中は保存を全ブロック（空データでの上書き事故を根絶）
+   lastLoadedAt: 楽観ロック。他端末がsave済みなら上書きせず再読み込みを促す
+   日次バックアップ: users/{uid}/backups/{YYYY-MM-DD} に保存前スナップショット（30世代）*/
+let loadFailed=false, lastLoadedAt=0, kpi=[];
+function toast(msg,ok){ let t=document.getElementById("toast"); if(!t){t=document.createElement("div");t.id="toast";t.style.cssText="position:fixed;bottom:74px;left:50%;transform:translateX(-50%);padding:9px 18px;border-radius:99px;font-size:12.5px;font-weight:700;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.25);transition:opacity .3s";document.body.appendChild(t);} t.style.background=ok?"#1b5e20":"#b71c1c"; t.style.color="#fff"; t.textContent=msg; t.style.opacity="1"; clearTimeout(t._h); t._h=setTimeout(()=>t.style.opacity="0",2600); }
+function applyData(d){ genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; goal=d.goal||{}; tracklog=d.tracklog||{}; kaizen=d.kaizen||[]; sunodl=d.sunodl||[]; kpi=d.kpi||[]; lastLoadedAt=d.updatedAt||0; }
+function packData(){ return {genres,benches,qas,steps,daily,goal,tracklog,kaizen,sunodl,kpi,updatedAt:Date.now()}; }
 async function loadCloud(){
   try{ const snap=await getDoc(userRef());
-    if(snap.exists()){ const d=snap.data(); genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; goal=d.goal||{}; tracklog=d.tracklog||{}; kaizen=d.kaizen||[]; sunodl=d.sunodl||[]; }
-    else { genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; tracklog={}; kaizen=[]; sunodl=[]; await saveCloud(); }
-  }catch(e){ console.error(e); alert("データ読込でエラー: "+e.message); genres=[]; benches=[]; qas=[]; steps={}; daily={}; goal={}; tracklog={}; kaizen=[]; sunodl=[]; }
+    if(snap.exists()){ applyData(snap.data()); }
+    else { applyData({}); await setDoc(userRef(),packData()); }
+    loadFailed=false;
+  }catch(e){ console.error(e); loadFailed=true;
+    toast("データ読込に失敗。表示は空でも保存はブロック中＝データは無事。通信を確認して再読み込みして",false); }
 }
 async function saveCloud(){ if(!user)return;
-  try{ await setDoc(userRef(),{genres,benches,qas,steps,daily,goal,tracklog,kaizen,sunodl,updatedAt:Date.now()},{merge:true}); }
-  catch(e){ console.error(e); alert("保存でエラー: "+e.message); }
+  if(loadFailed){ toast("読込失敗中のため保存を中止（上書き事故防止）。ページを再読み込みして",false); return; }
+  try{
+    // 楽観ロック: 他端末の更新を検知
+    const cur=await getDoc(userRef());
+    if(cur.exists()&&(cur.data().updatedAt||0)>lastLoadedAt){
+      toast("他の端末での更新を検出。上書きを中止した。ページを再読み込みして最新を取得して",false); return;
+    }
+    // 日次バックアップ（その日の初回保存前に現サーバー値を退避）
+    const today=new Date().toISOString().slice(0,10);
+    if(cur.exists()&&localStorage.getItem("bnav_bk")!==today){
+      await setDoc(doc(db,"users",user.uid,"backups",today),cur.data());
+      localStorage.setItem("bnav_bk",today);
+      // 30世代超は最古を削除
+      try{ const bs=await getDocs(collection(db,"users",user.uid,"backups"));
+        if(bs.size>30){ const ids=bs.docs.map(x=>x.id).sort(); await deleteDoc(doc(db,"users",user.uid,"backups",ids[0])); } }catch(_){}
+    }
+    const data=packData();
+    await setDoc(userRef(),data);
+    lastLoadedAt=data.updatedAt;
+    toast("✓ 保存した",true);
+  }catch(e){ console.error(e); toast("保存に失敗: "+e.message+"（データは前回保存分が残っとる）",false); }
 }
+async function openBackupSheet(){
+  let list='<div class="note">読み込み中…</div>';
+  openSheet('<h3>⚙ データの保護</h3>'
+   +'<div class="fld"><button class="pill" id="bkExport" style="width:100%">⬇ JSONエクスポート（手元に保存）</button></div>'
+   +'<div class="fld"><label>JSONインポート（置き換え）</label><input type="file" id="bkImport" accept=".json"></div>'
+   +'<div class="fld"><label>クラウド自動バックアップ（日次・30世代）</label><div id="bkList">'+list+'</div></div>'
+   +'<div class="acts"><button class="cancel" id="bkClose">閉じる</button></div>');
+  document.getElementById("bkClose").onclick=closeSheet;
+  document.getElementById("bkExport").onclick=exportJSON;
+  document.getElementById("bkImport").onchange=e=>{ if(e.target.files[0]) importJSON(e.target.files[0]); };
+  try{ const bs=await getDocs(collection(db,"users",user.uid,"backups"));
+    const ids=bs.docs.map(x=>x.id).sort().reverse();
+    document.getElementById("bkList").innerHTML= ids.length?
+      ids.map(id=>'<div style="display:flex;gap:8px;align-items:center;padding:4px 0;font-size:12px"><span style="flex:1">'+id+'</span><button class="pill" data-bk="'+id+'">この日に戻す</button></div>').join('')
+      :'<div class="note">まだ無し（次の保存時に自動作成される）</div>';
+    document.querySelectorAll("[data-bk]").forEach(b=>b.onclick=async()=>{
+      const id=b.getAttribute("data-bk");
+      if(!confirm(id+" のバックアップで現在のデータを置き換える。続ける？"))return;
+      const snap=await getDoc(doc(db,"users",user.uid,"backups",id));
+      if(snap.exists()){ applyData(snap.data()); lastLoadedAt=Date.now(); await saveCloud(); closeSheet(); render(); }
+    });
+  }catch(e){ document.getElementById("bkList").innerHTML='<div class="note">一覧取得エラー: '+esc(e.message)+'</div>'; }
+}
+function exportJSON(){ const blob=new Blob([JSON.stringify(packData(),null,1)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="benchmark-navi_"+new Date().toISOString().slice(0,10)+".json"; a.click(); }
+async function importJSON(file){ try{ const d=JSON.parse(await file.text()); if(!confirm("インポートすると今のクラウドデータを置き換える（直前に自動バックアップは取られる）。続ける？"))return; applyData(d); lastLoadedAt=Date.now(); await saveCloud(); render(); }catch(e){ toast("インポート失敗: "+e.message,false); } }
 
 function genreOK(g){const sy=num(g.startYear),mv=num(g.monthly);if(sy==null||mv==null)return null;return (nowY-sy>=2)&&(mv>=100);}
 function monthsSince(d){if(!d)return null;const x=new Date(d);if(isNaN(x))return null;const n=new Date();return (n.getFullYear()-x.getFullYear())*12+(n.getMonth()-x.getMonth());}
@@ -221,6 +276,13 @@ async function renderTitleLab(){
   const ngOwn=own.map(v=>({...v,ng:mark(v.title)}));
   const ngCount=ngOwn.filter(v=>v.ng.length).length;
   let h='<div class="card"><div style="font-weight:800;font-size:15px">🏷 タイトルLab <span style="font-size:11px;color:var(--muted);font-weight:600">ベンチ先の実タイトルが唯一の正解（キラ式TTP）・毎朝6:30自動更新（'+esc(TLDATA.updated||"?")+'時点）</span></div></div>';
+  // 新着（キラ: ベンチ先を毎日チェック）
+  const fresh=bench.filter(v=>v.first_seen===TLDATA.updated&&v.first_seen!==undefined);
+  if(fresh.length){
+    h+='<div class="card" style="border-color:#2e7d32"><div style="font-weight:800;margin-bottom:4px;color:#1b5e20">🆕 ベンチ先の新着（今日の取得で初検出）</div>'
+     +fresh.map(v=>'<div style="padding:5px 4px;border-top:1px solid var(--line);font-size:12px;line-height:1.5">'+esc(v.title)+' <span style="color:var(--muted)">('+esc(v.published)+')</span> <button class="pill" data-copy="'+esc(v.title)+'">コピー</button></div>').join('')
+     +'<div style="font-size:11px;color:var(--muted);margin-top:4px">キラ: 「ベンチ先は毎日チェック」。新着の型をその日のうちに取り入れる</div></div>';
+  }
   // ① 自分のタイトル診断
   h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">① 自分のタイトル診断（Dive365 直近'+own.length+'本）</div>'
    +(ngCount? '<div style="font-size:12px;color:#c62828;font-weight:700;margin-bottom:8px">⚠️ '+ngCount+'本にベンチ先が使ってない語が入っとる（赤=要リネーム候補）</div>'
@@ -259,7 +321,18 @@ async function renderTitleLab(){
         +'<div>変更前 '+(rb===null?'計測データ不足':'+'+rb+'/日')+' → 変更後 '+(ra===null?'<span style="color:var(--muted)">計測中（数日後に表示）</span>':'<b style="color:'+(ra>(rb||0)?'#2e7d32':'#c62828')+'">+'+ra+'/日</b>')+'</div></div>';
     }).join('') : '<div style="font-size:12px;color:var(--muted)">まだタイトル変更の記録なし。YouTube Studioでリネームすると翌朝の自動取得で検出→ここに前後比較が出る</div>')
    +'</div>';
+  // ⑥ 投稿前チェックリスト（出典: キラ式絶対ルール。★=キラ発言そのまま/☆=承認済み運用解釈）
+  h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">⑥ 投稿前チェックリスト（毎回ここを通してから投稿）</div>'
+   +[["★ サムネ: ベンチ先の伸び動画の要素に寄せた・英語のみ（日本語なし）"],
+     ["★ タグ・尺: 競合（ベンチ先）に合わせた（タグはvidIQで競合基準）"],
+     ["★ 検索KWをタイトル前方＋概要欄＋タグ＋ファイル名に入れた"],
+     ["☆ タイトルの全語がベンチ先語彙に一致（④チェッカーで✅）"],
+     ["★ 独自アレンジ（TTPS）に走ってない＝TTPに徹した"]].map((x,i)=>'<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 4px;border-top:1px solid var(--line);font-size:12.5px;line-height:1.5;cursor:pointer"><input type="checkbox" class="tlck">'+x[0]+'</label>').join('')
+   +'<div id="tlckMsg" style="margin-top:8px;font-size:12.5px;font-weight:800;color:var(--muted)">0/5</div>'
+   +'<div style="font-size:10.5px;color:var(--muted);margin-top:4px">★=キラさんの発言そのまま ☆=キラ原則からの運用解釈（Hiroka承認済み）。チェックは投稿ごとにリセット（保存されない）</div></div>';
   $main.innerHTML=h;
+  const cks=$main.querySelectorAll(".tlck"), msg=document.getElementById("tlckMsg");
+  cks.forEach(c=>c.onchange=()=>{const n=Array.from(cks).filter(x=>x.checked).length; msg.textContent=n+"/5"+(n===5?" ✅ 投稿してよし！":""); msg.style.color=n===5?"#1b5e20":"var(--muted)";});
   $main.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{ navigator.clipboard.writeText(b.getAttribute("data-copy")); b.textContent="✓"; setTimeout(()=>b.textContent="コピー",900); });
   const inp=document.getElementById("tlInput"), res=document.getElementById("tlResult");
   inp.oninput=()=>{ const t=inp.value; if(!t.trim()){res.innerHTML="";return;}
@@ -590,12 +663,37 @@ function trackDeadCard(e){ var b=e.b;
   return '<div class="card tap" data-et="'+b.id+'" style="padding:11px 12px;margin-bottom:10px;background:#fdecec;border-color:#f3c0c0">'
     +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px"><span style="font-size:14px;font-weight:700;color:#b3261e">👻 '+esc(b.name||"(無名のch)")+'</span><span style="margin-left:auto;display:flex;align-items:center;gap:7px">'+yt+'<span style="font-size:10px;color:#b3261e">反面教師·停止</span></span></div>'
     +'<div style="font-size:11px;color:#b3261e;line-height:1.6">'+(e.st.cause?esc(e.st.cause):'原因メモ未記入（タップして記入）')+'</div></div>'; }
+/* 自chのCTR・視聴維持率 週次記録（キラ: CTR目標4%／維持率 1h40%・2h30%・3h28%・5h23%。数値はStudioから転記） */
+const KPI_RET={"1h":40,"2h":30,"3h":28,"5h":23};
+function kpiCardHTML(){
+  const rows=(kpi||[]).slice().sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,8).map(k=>{
+    const ctrOK=parseFloat(k.ctr)>=4, retOK=parseFloat(k.ret)>=(KPI_RET[k.len]||30);
+    return '<tr><td>'+esc(k.date||"")+'</td><td style="color:'+(ctrOK?'#1b5e20':'#b71c1c')+';font-weight:700">'+esc(k.ctr||"")+'%'+(ctrOK?' ✓':' ✗')+'</td><td style="color:'+(retOK?'#1b5e20':'#b71c1c')+';font-weight:700">'+esc(k.ret||"")+'%'+(retOK?' ✓':' ✗')+'</td><td>'+esc(k.len||"")+'</td><td>'+esc(k.note||"")+'</td></tr>';});
+  return '<div class="card" style="margin:0 2px 12px"><div style="font-weight:800;font-size:13px;margin-bottom:4px">📊 CTR・視聴維持率（週1でStudioから転記）</div>'
+   +'<div style="font-size:11px;color:var(--muted);margin-bottom:6px">キラ基準: CTR≧4%／維持率 1h≧40%・2h≧30%・3h≧28%・5h≧23%。✗が続く→改善順は①サムネ→②タイトル→③中身</div>'
+   +'<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px">'
+   +'<input type="date" id="kpiDate" style="padding:5px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px">'
+   +'<input type="number" id="kpiCtr" placeholder="CTR%" step="0.1" style="width:74px;padding:5px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px">'
+   +'<input type="number" id="kpiRet" placeholder="維持率%" step="0.1" style="width:80px;padding:5px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px">'
+   +'<select id="kpiLen" style="padding:5px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px"><option>1h</option><option>2h</option><option>3h</option><option>5h</option></select>'
+   +'<input id="kpiNote" placeholder="メモ" style="flex:1;min-width:90px;padding:5px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px">'
+   +'<button class="pill" id="kpiAdd">記録</button></div>'
+   +((kpi||[]).length?'<table style="width:100%;border-collapse:collapse;font-size:11.5px"><tr style="color:var(--muted)"><th style="text-align:left">週</th><th>CTR</th><th>維持率</th><th>尺</th><th>メモ</th></tr>'+rows.join("")+'</table>':'<div style="font-size:11.5px;color:var(--muted)">まだ記録なし。YouTube Studio→アナリティクスの値を週1で入れると、キラ基準との差が見える</div>')
+   +'</div>';
+}
+function bindKpi(){ const b=document.getElementById("kpiAdd"); if(!b)return;
+  const d=document.getElementById("kpiDate"); d.value=new Date().toISOString().slice(0,10);
+  b.onclick=async()=>{ const rec={date:d.value,ctr:document.getElementById("kpiCtr").value,ret:document.getElementById("kpiRet").value,len:document.getElementById("kpiLen").value,note:document.getElementById("kpiNote").value.trim()};
+    if(!rec.ctr&&!rec.ret){toast("CTRか維持率どっちかは入れてや",false);return;}
+    kpi.push(rec); await saveCloud(); render(); };
+}
 function renderTrack(){
   let h='<div class="view-title"><h2>推移</h2><button class="addbtn" id="tAdd">＋ 記録</button></div>';
+  h+=kpiCardHTML();
   const tg=(k,lb)=>'<button data-m="'+k+'" style="font-size:11px;border:1px solid var(--line);border-radius:20px;padding:4px 12px;cursor:pointer;'+(trackMetric===k?'background:var(--link);color:#fff;border-color:var(--link)':'background:#fff;color:var(--muted)')+'">'+lb+'</button>';
   h+='<div style="display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px;gap:8px;flex-wrap:wrap"><div style="display:flex;gap:5px">'+tg("subs","登録者")+tg("views","再生")+'</div><div style="display:flex;gap:6px"><button class="pill" id="tKaizen" style="background:#f6f2fc;color:#7a52c4;border:1px solid #d9c9f4">📝 改善ログ</button><button class="pill" id="tCsv">⬇ CSV</button></div></div>';
   h+='<div style="font-size:12px;color:var(--muted);margin:0 2px 12px">転換率＝直近30日の登録者増÷再生数（1000再生あたり何人登録）。高い順＝真似すべき手本。グラフは常時表示・右の数字は日別（横スクロール）。</div>';
-  if(!benches.length){ h+='<div class="empty"><div class="big">先に「ベンチ先」を登録</div><div class="small">「▲ベンチ先」タブで手本チャンネルを追加すると、ここで毎日の推移を記録できます。</div></div>'; $main.innerHTML=h; bindTrack(); return; }
+  if(!benches.length){ h+='<div class="empty"><div class="big">先に「ベンチ先」を登録</div><div class="small">「▲ベンチ先」タブで手本チャンネルを追加すると、ここで毎日の推移を記録できます。</div></div>'; $main.innerHTML=h; bindTrack(); bindKpi(); return; }
   var entries=benches.map(b=>({b:b,st:trackStore(b.id),logs:benchLogs(b.id),conv:trackConv(b.id)}));
   var live=entries.filter(e=>e.st.status!=="stopped"&&e.st.status!=="stalled");
   var watch=entries.filter(e=>e.st.status==="stalled");
@@ -603,7 +701,7 @@ function renderTrack(){
   live.sort((a,b)=>((b.conv==null?-1:b.conv)-(a.conv==null?-1:a.conv)));
   live.forEach(e=>h+=trackCard(e)); watch.forEach(e=>h+=trackCard(e));
   if(dead.length){ h+='<div style="font-size:12px;font-weight:700;margin:6px 2px 8px;color:var(--muted)">👻 反面教師（記録ストップ・原因メモ）</div>'; dead.forEach(e=>h+=trackDeadCard(e)); }
-  $main.innerHTML=h; bindTrack(); }
+  $main.innerHTML=h; bindTrack(); bindKpi(); }
 function bindTrack(){
   var a=document.getElementById("tAdd"); if(a)a.onclick=()=>addRecordSheet(null);
   var c=document.getElementById("tCsv"); if(c)c.onclick=exportTrackCSV;
