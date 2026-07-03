@@ -229,23 +229,46 @@ async function renderTitleLab(){
       +(v.ng.length?'<span style="color:#c62828;font-weight:800">✗</span> ':'<span style="color:#2e7d32;font-weight:800">✓</span> ')
       +esc(v.title).replace(new RegExp('('+v.ng.map(w=>w.replace(/[.*+?^${}()|\\]/g,"\\$&")).join("|")+')','gi'), v.ng.length?'<mark style="background:#ffd8d6;color:#b71c1c;font-weight:800;border-radius:3px;padding:0 2px">$1</mark>':'$1')
       +' <span style="color:var(--muted)">('+esc(v.published)+' / '+v.views+'回)</span></div>').join('')+'</div>';
-  // ② ベンチ先タイトル（正解サンプル）
+  // ② ベンチ先タイトル（正解サンプル）＋日次の伸び（キラ:「ベンチ先を毎日チェック」）
+  const dpd=v=>{const h=Object.entries(v.views_hist||{}).sort();if(h.length<2)return null;const a=h[h.length-2],b=h[h.length-1];const days=Math.max(1,Math.round((new Date(b[0])-new Date(a[0]))/864e5));return Math.round((b[1]-a[1])/days);};
   h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">② ベンチ先の実タイトル（'+esc(bench[0]?bench[0].ch:"")+'・再生数順＝これが正解の型）</div>'
-   +bench.slice().sort((a,b)=>b.views-a.views).map(v=>'<div style="display:flex;gap:8px;align-items:center;padding:6px 4px;border-top:1px solid var(--line);font-size:12px"><span style="color:var(--muted);min-width:62px;text-align:right;font-weight:700">'+v.views.toLocaleString()+'回</span><span style="flex:1;line-height:1.45">'+esc(v.title)+'</span><button class="pill" data-copy="'+esc(v.title)+'" style="flex-shrink:0">コピー</button></div>').join('')+'</div>';
+   +'<div style="font-size:11px;color:var(--muted);margin-bottom:4px">「+n/日」は日次の伸び（記録2日目から表示）。キラ式: ベンチ先は毎日チェック</div>'
+   +bench.slice().sort((a,b)=>b.views-a.views).map(v=>{const d=dpd(v);return '<div style="display:flex;gap:8px;align-items:center;padding:6px 4px;border-top:1px solid var(--line);font-size:12px"><span style="color:var(--muted);min-width:62px;text-align:right;font-weight:700">'+v.views.toLocaleString()+'回</span><span style="min-width:56px;text-align:right;font-weight:800;color:'+(d>0?'#2e7d32':'#98a3b8')+'">'+(d===null?'ー':'+'+d+'/日')+'</span><span style="flex:1;line-height:1.45">'+esc(v.title)+'</span><button class="pill" data-copy="'+esc(v.title)+'" style="flex-shrink:0">コピー</button></div>';}).join('')+'</div>';
   // ③ 頻出要素
   h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">③ ベンチ先の頻出語（この語彙の範囲で組む）</div><div style="display:flex;flex-wrap:wrap;gap:6px">'
    +top.map(([w,n])=>'<span class="pill" style="cursor:default">'+esc(w)+' <b style="color:var(--muted)">'+n+'</b></span>').join('')+'</div>'
    +'<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">型: <b>Deep Focus Music – [動詞] [状態名詞] for [用途1], [用途2] & [ベネフィット]</b>（動詞・状態・用途は上の頻出語と②の実例から選ぶ。無い語は使わない）</div></div>';
-  // ④ チェッカー
+  // ④ チェッカー（TTP語彙 ＋ キラ:「刺さるKWをできるだけ前に」）
   h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">④ 新タイトルをチェック</div>'
    +'<textarea id="tlInput" rows="2" style="width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:8px;border:1px solid var(--line);border-radius:8px" placeholder="ここに投稿予定タイトルを貼る"></textarea>'
    +'<div id="tlResult" style="margin-top:8px;font-size:12.5px;line-height:1.6"></div></div>';
+  // ⑤ タイトル改善トラッキング（キラ: 改善の優先順位①サムネ→②タイトル→③中身）
+  const renamed=own.filter(v=>(v.title_hist||[]).length);
+  h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">⑤ タイトル改善トラッキング（変更の前後で日次伸びを比較）</div>'
+   +'<div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;line-height:1.5">キラ式: 改善は ①サムネ → ②タイトル → ③中身 の順。タイトルを変更すると自動でここに記録され、変更前後の伸びが比較できる。CTR（目標4%）と視聴維持率はRSSでは取れんためYouTube Studioで確認</div>'
+   +(renamed.length? renamed.map(v=>{
+      const ch=v.title_hist[v.title_hist.length-1];
+      const hist=Object.entries(v.views_hist||{}).sort();
+      const before=hist.filter(x=>x[0]<=ch.until), after=hist.filter(x=>x[0]>ch.until);
+      const rate=arr=>{if(arr.length<2)return null;const a=arr[0],b=arr[arr.length-1];const days=Math.max(1,Math.round((new Date(b[0])-new Date(a[0]))/864e5));return Math.round((b[1][1]??b[1])-(a[1][1]??a[1])/days);};
+      const rb=before.length>1?Math.round((before[before.length-1][1]-before[0][1])/Math.max(1,(new Date(before[before.length-1][0])-new Date(before[0][0]))/864e5)):null;
+      const ra=after.length>1?Math.round((after[after.length-1][1]-after[0][1])/Math.max(1,(new Date(after[after.length-1][0])-new Date(after[0][0]))/864e5)):null;
+      return '<div style="padding:8px 4px;border-top:1px solid var(--line);font-size:12px;line-height:1.6">'
+        +'<div style="color:var(--muted)">旧: '+esc(ch.title)+'</div>'
+        +'<div>新: <b>'+esc(v.title)+'</b> <span style="color:var(--muted)">('+esc(ch.until)+'変更)</span></div>'
+        +'<div>変更前 '+(rb===null?'計測データ不足':'+'+rb+'/日')+' → 変更後 '+(ra===null?'<span style="color:var(--muted)">計測中（数日後に表示）</span>':'<b style="color:'+(ra>(rb||0)?'#2e7d32':'#c62828')+'">+'+ra+'/日</b>')+'</div></div>';
+    }).join('') : '<div style="font-size:12px;color:var(--muted)">まだタイトル変更の記録なし。YouTube Studioでリネームすると翌朝の自動取得で検出→ここに前後比較が出る</div>')
+   +'</div>';
   $main.innerHTML=h;
   $main.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{ navigator.clipboard.writeText(b.getAttribute("data-copy")); b.textContent="✓"; setTimeout(()=>b.textContent="コピー",900); });
   const inp=document.getElementById("tlInput"), res=document.getElementById("tlResult");
-  inp.oninput=()=>{ const ng=mark(inp.value); if(!inp.value.trim()){res.innerHTML="";return;}
-    res.innerHTML= ng.length? '<span style="color:#c62828;font-weight:800">✗ ベンチ先に無い語: </span>'+ng.map(w=>'<mark style="background:#ffd8d6;color:#b71c1c;font-weight:800;border-radius:3px;padding:0 3px">'+esc(w)+'</mark>').join(" ")
-                            : '<span style="color:#2e7d32;font-weight:800">✅ 全語がベンチ先語彙に一致（キラ式TTP合格）</span>'; };
+  inp.oninput=()=>{ const t=inp.value; if(!t.trim()){res.innerHTML="";return;}
+    const ng=mark(t);
+    const kw=tlTokens(t).slice(0,4), kwOK=kw.includes("focus")&&kw.includes("music");
+    let out= ng.length? '<div><span style="color:#c62828;font-weight:800">✗ ベンチ先に無い語: </span>'+ng.map(w=>'<mark style="background:#ffd8d6;color:#b71c1c;font-weight:800;border-radius:3px;padding:0 3px">'+esc(w)+'</mark>').join(" ")+'</div>'
+                      : '<div><span style="color:#2e7d32;font-weight:800">✅ 全語がベンチ先語彙に一致（キラ式TTP合格）</span></div>';
+    out+= '<div style="margin-top:2px">'+(kwOK?'<span style="color:#2e7d32;font-weight:700">✅ 検索KW（focus music）が先頭にある</span>':'<span style="color:#b8860b;font-weight:700">⚠️ 検索KWを先頭へ（キラ:「刺さるキーワードをできるだけ前に」）</span>')+'</div>';
+    res.innerHTML=out; };
 }
 function renderMaterial(){
   $main.innerHTML='<div style="padding:4px 2px">'

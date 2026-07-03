@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
-"""ベンチ先＋自チャンネルの最新動画タイトルをYouTube RSSから取得し
-data/bench_titles.json を更新する（APIキー不要）。
-GitHub Actionsで毎日実行（.github/workflows/bench_titles.yml）。
-チャンネルの追加・変更はこのファイルの CHANNELS を編集。
+"""ベンチ先＋自チャンネルのタイトル・再生数をYouTube RSSから取得し
+data/bench_titles.json に【蓄積】する（上書きで消さない仕様）。
+
+- 動画はIDで管理。RSSから消えても記録は残す（削除しない）
+- 再生数は views_hist に日付つきで毎日追記 → 日次の伸び・変化を分析できる
+- タイトルが変わったら title_hist に旧タイトルを保存 → リネームの前後効果を測れる
+  （キラ式: 改善の優先順位①サムネ→②タイトル→③中身。タイトル変更の効果測定用）
+
+GitHub Actionsで毎朝実行（.github/workflows/bench_titles.yml）。
+チャンネル追加は CHANNELS を編集。
 """
 import json
 import datetime
@@ -30,25 +36,59 @@ def fetch(channel_id):
         root = ET.fromstring(r.read())
     videos = []
     for e in root.findall("a:entry", NS):
-        title = e.findtext("a:title", "", NS)
-        vid = e.findtext("yt:videoId", "", NS)
-        pub = (e.findtext("a:published", "", NS) or "")[:10]
         stats = e.find("media:group/media:community/media:statistics", NS)
-        views = int(stats.get("views", "0")) if stats is not None else 0
-        videos.append({"id": vid, "title": title, "published": pub, "views": views})
+        videos.append({
+            "id": e.findtext("yt:videoId", "", NS),
+            "title": e.findtext("a:title", "", NS),
+            "published": (e.findtext("a:published", "", NS) or "")[:10],
+            "views": int(stats.get("views", "0")) if stats is not None else 0,
+        })
     return videos
 
 
 def main():
-    out = {"updated": datetime.date.today().isoformat(), "channels": []}
+    today = datetime.date.today().isoformat()
+    old = json.load(open(OUT)) if OUT.exists() else {"channels": []}
+    old_by_cid = {c.get("channel_id"): c for c in old.get("channels", [])}
+
+    out = {"updated": today, "channels": []}
     for ch in CHANNELS:
+        prev = old_by_cid.get(ch["channel_id"], {})
+        merged = {v["id"]: v for v in prev.get("videos", [])}  # 既存レコードは全部保持
         try:
-            videos = fetch(ch["channel_id"])
+            fetched = fetch(ch["channel_id"])
         except Exception as e:
-            print(f"WARN {ch['name']}: {e}")
-            videos = []
+            print(f"WARN {ch['name']}: {e}（既存データを保持して続行）")
+            fetched = []
+        for v in fetched:
+            rec = merged.get(v["id"])
+            if rec is None:
+                rec = {"id": v["id"], "title": v["title"], "published": v["published"],
+                       "first_seen": today, "views": v["views"],
+                       "views_hist": {}, "title_hist": []}
+                merged[v["id"]] = rec
+            else:
+                # 旧スキーマ互換
+                rec.setdefault("views_hist", {})
+                rec.setdefault("title_hist", [])
+                rec.setdefault("first_seen", rec.get("published") or today)
+                if v["title"] and v["title"] != rec.get("title"):
+                    rec["title_hist"].append({"until": today, "title": rec.get("title")})
+                    rec["title"] = v["title"]
+                rec["views"] = v["views"]
+            rec["views_hist"][today] = v["views"]
+            rec["last_seen"] = today
+        videos = sorted(merged.values(), key=lambda r: r.get("published", ""), reverse=True)
         out["channels"].append({**ch, "videos": videos})
-        print(f"{ch['name']}: {len(videos)}本")
+        print(f"{ch['name']}: RSS {len(fetched)}本 / 蓄積 {len(videos)}本")
+
+    # CHANNELSから外したチャンネルの過去データも残す（消さない）
+    kept_ids = {c["channel_id"] for c in CHANNELS}
+    for cid, c in old_by_cid.items():
+        if cid not in kept_ids:
+            out["channels"].append(c)
+            print(f"{c.get('name')}: 監視対象外（過去データ保持）")
+
     OUT.parent.mkdir(exist_ok=True)
     json.dump(out, open(OUT, "w"), ensure_ascii=False, indent=1)
     print("→", OUT)
