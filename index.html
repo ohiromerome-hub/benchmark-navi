@@ -118,6 +118,7 @@
     <button data-v="step"><span class="ic">🚀</span><span class="lb">ステップ</span></button>
     <button data-v="genre" class="on"><span class="ic">🗂</span><span class="lb">ジャンル＆手本</span></button>
     <button data-v="track"><span class="ic">📈</span><span class="lb">推移</span></button>
+    <button data-v="title"><span class="ic">🏷</span><span class="lb">タイトル</span></button>
     <button data-v="map"><span class="ic">⛓</span><span class="lb">つながり</span></button>
     <button data-v="qa"><span class="ic">❓</span><span class="lb">Q&amp;A</span></button>
   </nav>
@@ -203,7 +204,49 @@ function goalReach(g){ var gv=goalViews(); var m=num(g.monthly); if(gv==null||m=
 function goalReachPill(g){ var r=goalReach(g); if(!r) return ''; var n=r.ratio, t=n>=1?('目標×'+(n>=10?Math.round(n):n.toFixed(1))):'目標未満'; return '<span class="grp '+(r.ok?'grp-ok':'grp-no')+'">🎯'+t+'</span>'; }
 function goalFormHTML(){ var a=goal.amount||'', r=goal.rpm||'2000', p=goal.purpose||''; return '<div class="mgoal"><div class="gfh">🎯 あなたの目標（数値で記録）</div><div class="gfr"><label>月収目標</label><div class="gfi"><span>¥</span><input id="g_amount" type="text" inputmode="numeric" value="'+esc(a)+'" placeholder="500000"></div></div><div class="gfr"><label>RPM（1000再生あたり）</label><div class="gfi"><span>¥</span><input id="g_rpm" type="text" inputmode="numeric" value="'+esc(r)+'" placeholder="2000"></div></div><div class="gfr gfp"><label>目的（なぜこの金額？）</label><textarea id="g_purpose" placeholder="この金額を達成したら叶えたい人生（例：会社を辞めて時間と場所に縛られない暮らし）">'+esc(p)+'</textarea></div><div class="gfo" id="g_out">'+goalOutHTML(goalViews())+'</div></div>'; }
 
-function render(){ document.body.classList.toggle("wide-hub",view==="genre"); if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="kaizen")renderKaizen(); else if(view==="sunodl")renderSunoDL(); else if(view==="material")renderMaterial(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else renderMap(); }
+function render(){ document.body.classList.toggle("wide-hub",view==="genre"); if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="kaizen")renderKaizen(); else if(view==="sunodl")renderSunoDL(); else if(view==="material")renderMaterial(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else if(view==="title")renderTitleLab(); else renderMap(); }
+
+/* ===== 🏷 タイトルLab（キラ式TTP: 判定は常に「今のベンチ先の実タイトル」から機械的に） ===== */
+let TLDATA=null;
+function tlTokens(t){ return (t||"").toLowerCase().replace(/[–—\-,&|:!?.()\[\]]/g," ").split(/\s+/).filter(w=>w.length>1); }
+async function renderTitleLab(){
+  $main.innerHTML='<div class="card">読み込み中…</div>';
+  if(!TLDATA){ try{ TLDATA=await (await fetch("data/bench_titles.json?v="+Date.now())).json(); }catch(e){ $main.innerHTML='<div class="card">bench_titles.json が読めません。GitHub Actions「ベンチ先タイトル 日次取得」を一度実行してください。</div>'; return; } }
+  const bench=TLDATA.channels.filter(c=>c.role==="bench").flatMap(c=>c.videos.map(v=>({...v,ch:c.name})));
+  const own=TLDATA.channels.filter(c=>c.role==="own").flatMap(c=>c.videos.map(v=>({...v,ch:c.name})));
+  const vocab=new Set(bench.flatMap(v=>tlTokens(v.title)));
+  const freq={}; bench.forEach(v=>{ new Set(tlTokens(v.title)).forEach(w=>freq[w]=(freq[w]||0)+1); });
+  const top=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,28);
+  const mark=t=>tlTokens(t).filter(w=>!vocab.has(w)&&!/^\d+$/.test(w));
+  const ngOwn=own.map(v=>({...v,ng:mark(v.title)}));
+  const ngCount=ngOwn.filter(v=>v.ng.length).length;
+  let h='<div class="card"><div style="font-weight:800;font-size:15px">🏷 タイトルLab <span style="font-size:11px;color:var(--muted);font-weight:600">ベンチ先の実タイトルが唯一の正解（キラ式TTP）・毎朝6:30自動更新（'+esc(TLDATA.updated||"?")+'時点）</span></div></div>';
+  // ① 自分のタイトル診断
+  h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">① 自分のタイトル診断（Dive365 直近'+own.length+'本）</div>'
+   +(ngCount? '<div style="font-size:12px;color:#c62828;font-weight:700;margin-bottom:8px">⚠️ '+ngCount+'本にベンチ先が使ってない語が入っとる（赤=要リネーム候補）</div>'
+            : '<div style="font-size:12px;color:#2e7d32;font-weight:700;margin-bottom:8px">✅ 全タイトルがベンチ先語彙に一致</div>')
+   +ngOwn.map(v=>'<div style="padding:7px 4px;border-top:1px solid var(--line);font-size:12px;line-height:1.5">'
+      +(v.ng.length?'<span style="color:#c62828;font-weight:800">✗</span> ':'<span style="color:#2e7d32;font-weight:800">✓</span> ')
+      +esc(v.title).replace(new RegExp('('+v.ng.map(w=>w.replace(/[.*+?^${}()|\\]/g,"\\$&")).join("|")+')','gi'), v.ng.length?'<mark style="background:#ffd8d6;color:#b71c1c;font-weight:800;border-radius:3px;padding:0 2px">$1</mark>':'$1')
+      +' <span style="color:var(--muted)">('+esc(v.published)+' / '+v.views+'回)</span></div>').join('')+'</div>';
+  // ② ベンチ先タイトル（正解サンプル）
+  h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">② ベンチ先の実タイトル（'+esc(bench[0]?bench[0].ch:"")+'・再生数順＝これが正解の型）</div>'
+   +bench.slice().sort((a,b)=>b.views-a.views).map(v=>'<div style="display:flex;gap:8px;align-items:center;padding:6px 4px;border-top:1px solid var(--line);font-size:12px"><span style="color:var(--muted);min-width:62px;text-align:right;font-weight:700">'+v.views.toLocaleString()+'回</span><span style="flex:1;line-height:1.45">'+esc(v.title)+'</span><button class="pill" data-copy="'+esc(v.title)+'" style="flex-shrink:0">コピー</button></div>').join('')+'</div>';
+  // ③ 頻出要素
+  h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">③ ベンチ先の頻出語（この語彙の範囲で組む）</div><div style="display:flex;flex-wrap:wrap;gap:6px">'
+   +top.map(([w,n])=>'<span class="pill" style="cursor:default">'+esc(w)+' <b style="color:var(--muted)">'+n+'</b></span>').join('')+'</div>'
+   +'<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">型: <b>Deep Focus Music – [動詞] [状態名詞] for [用途1], [用途2] & [ベネフィット]</b>（動詞・状態・用途は上の頻出語と②の実例から選ぶ。無い語は使わない）</div></div>';
+  // ④ チェッカー
+  h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">④ 新タイトルをチェック</div>'
+   +'<textarea id="tlInput" rows="2" style="width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:8px;border:1px solid var(--line);border-radius:8px" placeholder="ここに投稿予定タイトルを貼る"></textarea>'
+   +'<div id="tlResult" style="margin-top:8px;font-size:12.5px;line-height:1.6"></div></div>';
+  $main.innerHTML=h;
+  $main.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{ navigator.clipboard.writeText(b.getAttribute("data-copy")); b.textContent="✓"; setTimeout(()=>b.textContent="コピー",900); });
+  const inp=document.getElementById("tlInput"), res=document.getElementById("tlResult");
+  inp.oninput=()=>{ const ng=mark(inp.value); if(!inp.value.trim()){res.innerHTML="";return;}
+    res.innerHTML= ng.length? '<span style="color:#c62828;font-weight:800">✗ ベンチ先に無い語: </span>'+ng.map(w=>'<mark style="background:#ffd8d6;color:#b71c1c;font-weight:800;border-radius:3px;padding:0 3px">'+esc(w)+'</mark>').join(" ")
+                            : '<span style="color:#2e7d32;font-weight:800">✅ 全語がベンチ先語彙に一致（キラ式TTP合格）</span>'; };
+}
 function renderMaterial(){
   $main.innerHTML='<div style="padding:4px 2px">'
    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><button id="matBack" class="pill">← ステップ</button><span style="font-size:16px;font-weight:800;color:var(--ink)">📚 セミナー資料</span><button id="matReload" class="pill" style="margin-left:auto">↻ 再読み込み</button></div>'
