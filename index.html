@@ -118,7 +118,7 @@
     <button data-v="step"><span class="ic">🚀</span><span class="lb">ステップ</span></button>
     <button data-v="genre" class="on"><span class="ic">🗂</span><span class="lb">ジャンル＆手本</span></button>
     <button data-v="track"><span class="ic">📈</span><span class="lb">推移</span></button>
-    <button data-v="title"><span class="ic">🏷</span><span class="lb">タイトル</span></button>
+    <button data-v="title"><span class="ic">🔬</span><span class="lb">ベンチ分析</span></button>
     <button data-v="map"><span class="ic">⛓</span><span class="lb">つながり</span></button>
     <button data-v="qa"><span class="ic">❓</span><span class="lb">Q&amp;A</span></button>
   </nav>
@@ -262,11 +262,12 @@ function goalFormHTML(){ var a=goal.amount||'', r=goal.rpm||'2000', p=goal.purpo
 function render(){ document.body.classList.toggle("wide-hub",view==="genre"); if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="kaizen")renderKaizen(); else if(view==="sunodl")renderSunoDL(); else if(view==="material")renderMaterial(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else if(view==="title")renderTitleLab(); else renderMap(); }
 
 /* ===== 🏷 タイトルLab（キラ式TTP: 判定は常に「今のベンチ先の実タイトル」から機械的に） ===== */
-let TLDATA=null, TLBENCH=null, TLSORT='momentum';
+let TLDATA=null, TLBENCH=null, TLSORT='momentum', TLTAB='title', TLCOM=null;
 function tlTokens(t){ return (t||"").toLowerCase().replace(/[–—\-,&|:!?.()\[\]]/g," ").split(/\s+/).filter(w=>w.length>1); }
 async function renderTitleLab(){
   $main.innerHTML='<div class="card">読み込み中…</div>';
   if(!TLDATA){ try{ TLDATA=await (await fetch("data/bench_titles.json?v="+Date.now())).json(); }catch(e){ $main.innerHTML='<div class="card">bench_titles.json が読めません。GitHub Actions「ベンチ先タイトル 日次取得」を一度実行してください。</div>'; return; } }
+  if(!TLCOM){ try{ TLCOM=await (await fetch("data/bench_comments.json?v="+Date.now())).json(); }catch(e){ TLCOM={videos:{}}; } }
   const bench=TLDATA.channels.filter(c=>c.role==="bench").flatMap(c=>c.videos.map(v=>({...v,ch:c.name})));
   const own=TLDATA.channels.filter(c=>c.role==="own").flatMap(c=>c.videos.map(v=>({...v,ch:c.name})));
   const vocab=new Set(bench.flatMap(v=>tlTokens(v.title)));
@@ -275,12 +276,22 @@ async function renderTitleLab(){
   const mark=t=>tlTokens(t).filter(w=>!vocab.has(w)&&!/^\d+$/.test(w));
   const ngOwn=own.map(v=>({...v,ng:mark(v.title)}));
   const ngCount=ngOwn.filter(v=>v.ng.length).length;
-  let h='<div class="card"><div style="font-weight:800;font-size:15px">🏷 タイトルLab <span style="font-size:11px;color:var(--muted);font-weight:600">ベンチ先の実タイトルが唯一の正解（キラ式TTP）・毎朝6:30自動更新（'+esc(TLDATA.updated||"?")+'時点）</span></div></div>';
+  const TABS={title:'📝 タイトル',thumb:'🖼 サムネ',desc:'📄 概要欄',voice:'💬 視聴者の声',check:'✅ チェック'};
+  let h='<div class="card" style="padding:10px 14px"><div style="font-weight:800;font-size:15px">🔬 ベンチ分析 <span style="font-size:11px;color:var(--muted);font-weight:600">ベンチ先の実タイトルが唯一の正解（キラ式TTP）・毎朝6:30自動更新（'+esc(TLDATA.updated||"?")+'時点）</span></div>'
+   +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+Object.entries(TABS).map(([k,lb])=>'<button class="pill lt" data-tlt="'+k+'" style="'+(TLTAB===k?'background:var(--ink);color:#fff;border-color:var(--ink)':'')+'">'+lb+'</button>').join('')+'</div></div>';
+  const dpd=v=>{const h=Object.entries(v.views_hist||{}).sort();if(h.length<2)return null;const a=h[h.length-2],b=h[h.length-1];const days=Math.max(1,Math.round((new Date(b[0])-new Date(a[0]))/864e5));return Math.round((b[1]-a[1])/days);};
+  const mom=v=>{const days=Math.max(1,Math.round((new Date(TLDATA.updated)-new Date(v.published))/864e5));return Math.round(v.views/days);};
+  const benchChs=TLDATA.channels.filter(c=>c.role==="bench");
+  if(!TLBENCH||!benchChs.some(c=>c.channel_id===TLBENCH)) TLBENCH=benchChs[0]?benchChs[0].channel_id:null;
+  const cur=benchChs.find(c=>c.channel_id===TLBENCH)||{videos:[],name:""};
+  const curVids=cur.videos.map(v=>({...v,ch:cur.name}));
+  const SORTS={momentum:{lb:'🔥勢い順',fn:(a,b)=>mom(b)-mom(a)},views:{lb:'累計再生順',fn:(a,b)=>b.views-a.views},newest:{lb:'新着順',fn:(a,b)=>(b.published||'').localeCompare(a.published||'')}};
+  if(TLTAB==='title'){
   // 新着（キラ: ベンチ先を毎日チェック）
   const fresh=bench.filter(v=>v.first_seen===TLDATA.updated&&v.first_seen!==undefined);
   if(fresh.length){
     h+='<div class="card" style="border-color:#2e7d32"><div style="font-weight:800;margin-bottom:4px;color:#1b5e20">🆕 ベンチ先の新着（今日の取得で初検出）</div>'
-     +fresh.map(v=>'<div style="padding:5px 4px;border-top:1px solid var(--line);font-size:12px;line-height:1.5">'+esc(v.title)+' <span style="color:var(--muted)">('+esc(v.published)+')</span> <button class="pill" data-copy="'+esc(v.title)+'">コピー</button></div>').join('')
+     +fresh.map(v=>'<div style="padding:5px 4px;border-top:1px solid var(--line);font-size:12px;line-height:1.5">'+esc(v.title)+' <span style="color:var(--muted)">('+esc(v.published)+')</span> <button class="pill lt" data-copy="'+esc(v.title)+'">コピー</button></div>').join('')
      +'<div style="font-size:11px;color:var(--muted);margin-top:4px">キラ: 「ベンチ先は毎日チェック」。新着の型をその日のうちに取り入れる</div></div>';
   }
   // ① 自分のタイトル診断
@@ -292,22 +303,17 @@ async function renderTitleLab(){
       +esc(v.title).replace(new RegExp('('+v.ng.map(w=>w.replace(/[.*+?^${}()|\\]/g,"\\$&")).join("|")+')','gi'), v.ng.length?'<mark style="background:#ffd8d6;color:#b71c1c;font-weight:800;border-radius:3px;padding:0 2px">$1</mark>':'$1')
       +' <span style="color:var(--muted)">('+esc(v.published)+' / '+v.views+'回)</span></div>').join('')+'</div>';
   // ② ベンチ先の実タイトル — チャンネル切替＋勢い順（古参有利バイアス排除・キラ:「今伸びてるchを真似る」）
-  const dpd=v=>{const h=Object.entries(v.views_hist||{}).sort();if(h.length<2)return null;const a=h[h.length-2],b=h[h.length-1];const days=Math.max(1,Math.round((new Date(b[0])-new Date(a[0]))/864e5));return Math.round((b[1]-a[1])/days);};
-  const mom=v=>{const days=Math.max(1,Math.round((new Date(TLDATA.updated)-new Date(v.published))/864e5));return Math.round(v.views/days);};
-  const benchChs=TLDATA.channels.filter(c=>c.role==="bench");
-  if(!TLBENCH||!benchChs.some(c=>c.channel_id===TLBENCH)) TLBENCH=benchChs[0]?benchChs[0].channel_id:null;
-  const cur=benchChs.find(c=>c.channel_id===TLBENCH)||{videos:[],name:""};
-  const curVids=cur.videos.map(v=>({...v,ch:cur.name}));
-  const SORTS={momentum:{lb:'🔥勢い順',fn:(a,b)=>mom(b)-mom(a)},views:{lb:'累計再生順',fn:(a,b)=>b.views-a.views},newest:{lb:'新着順',fn:(a,b)=>(b.published||'').localeCompare(a.published||'')}};
   h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">② ベンチ先の実タイトル（'+benchChs.length+'ベンチ比較）</div>'
-   +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'+benchChs.map(c=>'<button class="pill" data-tlb="'+c.channel_id+'" style="'+(c.channel_id===TLBENCH?'background:var(--ink);color:#fff;border-color:var(--ink)':'')+'">'+esc(c.name)+'</button>').join('')+'</div>'
-   +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px">'+Object.entries(SORTS).map(([k,o])=>'<button class="pill" data-tls="'+k+'" style="font-size:11px;'+(TLSORT===k?'background:#eef3ff;border-color:var(--accent);color:var(--accent)':'')+'">'+o.lb+'</button>').join('')+'</div>'
+   +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'+benchChs.map(c=>'<button class="pill lt" data-tlb="'+c.channel_id+'" style="'+(c.channel_id===TLBENCH?'background:var(--ink);color:#fff;border-color:var(--ink)':'')+'">'+esc(c.name)+'</button>').join('')+'</div>'
+   +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px">'+Object.entries(SORTS).map(([k,o])=>'<button class="pill lt" data-tls="'+k+'" style="font-size:11px;'+(TLSORT===k?'background:#eef3ff;border-color:var(--accent);color:var(--accent)':'')+'">'+o.lb+'</button>').join('')+'</div>'
    +'<div style="font-size:11px;color:var(--muted);margin-bottom:4px">🔥勢い＝累計再生÷公開からの日数（古い動画ほど有利になる累計バイアスを排除）。「+n/日」は直近の日次伸び。キラ式:「今」伸びてる型を真似る</div>'
-   +curVids.slice().sort(SORTS[TLSORT].fn).map(v=>{const d=dpd(v),m=mom(v);return '<div style="display:flex;gap:8px;align-items:center;padding:6px 4px;border-top:1px solid var(--line);font-size:12px"><span style="min-width:66px;text-align:right;font-weight:800;color:#c05621">🔥'+m.toLocaleString()+'/日</span><span style="color:var(--muted);min-width:60px;text-align:right">'+v.views.toLocaleString()+'回</span><span style="min-width:52px;text-align:right;font-weight:700;color:'+(d>0?'#2e7d32':'#98a3b8')+'">'+(d===null?'ー':'+'+d+'/日')+'</span><span style="flex:1;line-height:1.45">'+esc(v.title)+' <span style="color:var(--muted);font-size:10px">'+esc((v.published||'').slice(5))+'</span></span><button class="pill" data-copy="'+esc(v.title)+'" style="flex-shrink:0">コピー</button></div>';}).join('')+'</div>';
+   +curVids.slice().sort(SORTS[TLSORT].fn).map(v=>{const d=dpd(v),m=mom(v);return '<div style="display:flex;gap:8px;align-items:center;padding:6px 4px;border-top:1px solid var(--line);font-size:12px"><span style="min-width:66px;text-align:right;font-weight:800;color:#c05621">🔥'+m.toLocaleString()+'/日</span><span style="color:var(--muted);min-width:60px;text-align:right">'+v.views.toLocaleString()+'回</span><span style="min-width:52px;text-align:right;font-weight:700;color:'+(d>0?'#2e7d32':'#98a3b8')+'">'+(d===null?'ー':'+'+d+'/日')+'</span><span style="flex:1;line-height:1.45">'+esc(v.title)+' <span style="color:var(--muted);font-size:10px">'+esc((v.published||'').slice(5))+'</span></span><button class="pill lt" data-copy="'+esc(v.title)+'" style="flex-shrink:0">コピー</button></div>';}).join('')+'</div>';
   // ③ 頻出要素
   h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">③ ベンチ先の頻出語（全'+benchChs.length+'ベンチ合算・この語彙の範囲で組む）</div><div style="display:flex;flex-wrap:wrap;gap:6px">'
-   +top.map(([w,n])=>'<span class="pill" style="cursor:default">'+esc(w)+' <b style="color:var(--muted)">'+n+'</b></span>').join('')+'</div>'
+   +top.map(([w,n])=>'<span class="pill lt" style="cursor:default">'+esc(w)+' <b style="color:var(--muted)">'+n+'</b></span>').join('')+'</div>'
    +'<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">型: <b>Deep Focus Music – [動詞] [状態名詞] for [用途1], [用途2] & [ベネフィット]</b>（動詞・状態・用途は上の頻出語と②の実例から選ぶ。無い語は使わない）</div></div>';
+  } // /title
+  if(TLTAB==='check'){
   // ④ チェッカー（TTP語彙 ＋ キラ:「刺さるKWをできるだけ前に」）
   h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">④ 新タイトルをチェック</div>'
    +'<textarea id="tlInput" rows="2" style="width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:8px;border:1px solid var(--line);border-radius:8px" placeholder="ここに投稿予定タイトルを貼る"></textarea>'
@@ -338,9 +344,60 @@ async function renderTitleLab(){
      ["★ 独自アレンジ（TTPS）に走ってない＝TTPに徹した"]].map((x,i)=>'<label style="display:flex;gap:8px;align-items:flex-start;padding:6px 4px;border-top:1px solid var(--line);font-size:12.5px;line-height:1.5;cursor:pointer"><input type="checkbox" class="tlck">'+x[0]+'</label>').join('')
    +'<div id="tlckMsg" style="margin-top:8px;font-size:12.5px;font-weight:800;color:var(--muted)">0/5</div>'
    +'<div style="font-size:10.5px;color:var(--muted);margin-top:4px">★=キラさんの発言そのまま ☆=キラ原則からの運用解釈（Hiroka承認済み）。チェックは投稿ごとにリセット（保存されない）</div></div>';
+  } // /check
+  if(TLTAB==='thumb'){
+    const sorted=curVids.slice().sort(SORTS.momentum.fn);
+    h+='<div class="card"><div style="font-weight:800;margin-bottom:4px">🖼 サムネボード（'+esc(cur.name)+'・勢い順）</div>'
+     +'<div style="font-size:11px;color:var(--muted);margin-bottom:8px">キラ式: 改善の最優先はサムネ。伸びとるサムネの共通要素（構図・文字量・色・光）を目で盗んで自分のサムネに寄せる</div>'
+     +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+benchChs.map(c=>'<button class="pill lt" data-tlb="'+c.channel_id+'" style="'+(c.channel_id===TLBENCH?'background:var(--ink);color:#fff;border-color:var(--ink)':'')+'">'+esc(c.name)+'</button>').join('')+'</div>'
+     +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">'
+     +sorted.map(v=>'<a href="https://youtu.be/'+v.id+'" target="_blank" rel="noopener" style="text-decoration:none;color:var(--ink)"><img src="https://i.ytimg.com/vi/'+v.id+'/mqdefault.jpg" style="width:100%;border-radius:8px;display:block;aspect-ratio:16/9;object-fit:cover;background:#eee" loading="lazy"><div style="font-size:10px;line-height:1.5;margin-top:3px"><b style="color:#c05621">🔥'+mom(v).toLocaleString()+'/日</b> ・ '+v.views.toLocaleString()+'回 ・ '+esc((v.published||'').slice(5))+'</div></a>').join('')+'</div></div>';
+    if(own.length){
+      h+='<div class="card"><div style="font-weight:800;margin-bottom:4px">自分のサムネ（Dive365）と見比べる</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">'
+       +own.slice(0,8).map(v=>'<a href="https://youtu.be/'+v.id+'" target="_blank" rel="noopener" style="text-decoration:none;color:var(--ink)"><img src="https://i.ytimg.com/vi/'+v.id+'/mqdefault.jpg" style="width:100%;border-radius:8px;display:block;aspect-ratio:16/9;object-fit:cover;background:#eee" loading="lazy"><div style="font-size:10px;margin-top:3px">'+v.views.toLocaleString()+'回 ・ '+esc((v.published||'').slice(5))+'</div></a>').join('')+'</div></div>';
+    }
+  }
+  if(TLTAB==='desc'){
+    const sorted=curVids.slice().sort(SORTS.momentum.fn).slice(0,5);
+    const allDesc=bench.map(v=>v.desc||'').filter(Boolean);
+    const tags={}; allDesc.forEach(d=>{(d.match(/#[^\s#,、]+/g)||[]).forEach(t=>tags[t]=(tags[t]||0)+1);});
+    const tagTop=Object.entries(tags).sort((a,b)=>b[1]-a[1]).slice(0,15);
+    const avgLines=allDesc.length?Math.round(allDesc.reduce((s2,d)=>s2+d.split('\n').length,0)/allDesc.length):0;
+    const linkRate=allDesc.length?Math.round(100*allDesc.filter(d=>/https?:/.test(d)).length/allDesc.length):0;
+    h+='<div class="card"><div style="font-weight:800;margin-bottom:4px">📄 概要欄の型（全ベンチ'+allDesc.length+'本の分析）</div>'
+     +'<div style="font-size:12px;line-height:1.8">平均 <b>'+avgLines+'行</b> ・ リンクあり <b>'+linkRate+'%</b></div>'
+     +(tagTop.length?'<div style="font-size:11px;color:var(--muted);margin-top:6px">頻出ハッシュタグ（検索・関連流入のTTP対象）:</div><div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px">'+tagTop.map(([t,n])=>'<span class="pill lt" style="cursor:default;font-size:11px">'+esc(t)+' <b style="color:var(--muted)">'+n+'</b></span>').join('')+'</div>':'')
+     +'<div style="font-size:10.5px;color:var(--muted);margin-top:6px">キラ式: 検索KWを概要欄にも入れる。ベンチ先のタグ・構成に合わせる（関連動画対策）</div></div>';
+    h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">'+esc(cur.name)+' 勢い上位の概要欄（原文）</div>'
+     +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+benchChs.map(c=>'<button class="pill lt" data-tlb="'+c.channel_id+'" style="'+(c.channel_id===TLBENCH?'background:var(--ink);color:#fff;border-color:var(--ink)':'')+'">'+esc(c.name)+'</button>').join('')+'</div>'
+     +sorted.map(v=>'<details style="border-top:1px solid var(--line);padding:6px 2px"><summary style="font-size:12px;font-weight:700;cursor:pointer;line-height:1.5">🔥'+mom(v).toLocaleString()+'/日 ・ '+esc(v.title.slice(0,60))+'</summary><pre style="white-space:pre-wrap;font-size:11px;background:#f8fafd;border-radius:8px;padding:8px;margin-top:6px;max-height:260px;overflow:auto">'+esc(v.desc||'（概要欄なし／次回の自動更新で取得）')+'</pre></details>').join('')+'</div>';
+  }
+  if(TLTAB==='voice'){
+    const vids=Object.entries((TLCOM||{}).videos||{}).map(([id,v])=>({id,...v}));
+    const curV=vids.filter(v=>v.ch===cur.name);
+    const allC=curV.flatMap(v=>v.comments.map(c=>({...c,vt:v.title})));
+    const SCENES=[['📚 勉強・受験',/study|studying|exam|homework|勉強|受験|宿題/i],['💼 仕事・作業',/work|working|office|job|仕事|作業|残業/i],['💻 コーディング',/cod(e|ing)|program|develop|プログラ/i],['😴 睡眠・リラックス',/sleep|relax|calm|anxiety|stress|insomnia|寝|睡眠|リラックス|癒/i],['🧠 集中・ADHD',/focus|concentrat|adhd|deep work|集中/i],['🌙 夜・深夜',/night|midnight|3am|2am|夜|深夜/i]];
+    const buckets=SCENES.map(([lb,re])=>[lb,allC.filter(c=>re.test(c.t)).length]);
+    const maxB=Math.max(1,...buckets.map(b=>b[1]));
+    const stop=new Set(['the','this','and','for','you','that','with','have','from','music','video','love','like','not','are','was','its','just','can','all','but','your','has','one','out','get','when','while','what','how','who','http','https','thank','thanks']);
+    const freq={}; allC.forEach(c=>{c.t.toLowerCase().replace(/[^a-z\u3040-\u30ff\u4e00-\u9fff\s]/g,' ').split(/\s+/).forEach(w=>{if(w.length>2&&!stop.has(w))freq[w]=(freq[w]||0)+1;});});
+    const wTop=Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,18);
+    const quotes=allC.filter(c=>c.t.length>25&&!/subscribe|channel/i.test(c.t)).sort((a,b)=>b.likes-a.likes).slice(0,6);
+    h+='<div class="card"><div style="font-weight:800;margin-bottom:4px">💬 視聴者の声（'+esc(cur.name)+'・勢い上位動画のコメント'+allC.length+'件）</div>'
+     +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+benchChs.map(c=>'<button class="pill lt" data-tlb="'+c.channel_id+'" style="'+(c.channel_id===TLBENCH?'background:var(--ink);color:#fff;border-color:var(--ink)':'')+'">'+esc(c.name)+'</button>').join('')+'</div>'
+     +(allC.length?
+       '<div style="font-weight:700;font-size:12px;margin:6px 0 4px">視聴者は何のために聴きに来とるか（利用シーン）</div>'
+       +buckets.map(([lb,n])=>'<div style="display:flex;align-items:center;gap:8px;margin:3px 0;font-size:12px"><span style="min-width:110px">'+lb+'</span><div style="flex:1;background:#eef1f6;border-radius:6px;height:14px"><div style="width:'+(n/maxB*100)+'%;background:var(--accent,#3a6df0);height:14px;border-radius:6px"></div></div><b style="min-width:26px;text-align:right">'+n+'</b></div>').join('')
+       +'<div style="font-weight:700;font-size:12px;margin:12px 0 4px">コメント頻出語</div><div style="display:flex;flex-wrap:wrap;gap:5px">'+wTop.map(([w,n])=>'<span class="pill lt" style="cursor:default;font-size:11px">'+esc(w)+' <b style="color:var(--muted)">'+n+'</b></span>').join('')+'</div>'
+       +'<div style="font-weight:700;font-size:12px;margin:12px 0 4px">高評価コメント（生の声）</div>'
+       +quotes.map(c=>'<div style="border-top:1px solid var(--line);padding:6px 2px;font-size:12px;line-height:1.6">👍'+c.likes+'　'+esc(c.t.slice(0,180))+'<div style="font-size:10px;color:var(--muted)">→ '+esc((c.vt||'').slice(0,50))+'</div></div>').join('')
+       :'<div style="font-size:12px;color:var(--muted)">このチャンネルのコメントはまだ未取得（週次で自動取得・対象は勢い上位5本）</div>')
+     +'<div style="font-size:10.5px;color:var(--muted);margin-top:8px">出典: 各動画のコメント（人気順・投稿者自身のコメントは除外）。ここから「タイトル・サムネ・概要欄でどの利用シーンを打ち出すか」を決める</div></div>';
+  }
   $main.innerHTML=h;
   const cks=$main.querySelectorAll(".tlck"), msg=document.getElementById("tlckMsg");
   cks.forEach(c=>c.onchange=()=>{const n=Array.from(cks).filter(x=>x.checked).length; msg.textContent=n+"/5"+(n===5?" ✅ 投稿してよし！":""); msg.style.color=n===5?"#1b5e20":"var(--muted)";});
+  $main.querySelectorAll("[data-tlt]").forEach(b=>b.onclick=()=>{TLTAB=b.getAttribute("data-tlt");renderTitleLab();});
   $main.querySelectorAll("[data-tlb]").forEach(b=>b.onclick=()=>{TLBENCH=b.getAttribute("data-tlb");renderTitleLab();});
   $main.querySelectorAll("[data-tls]").forEach(b=>b.onclick=()=>{TLSORT=b.getAttribute("data-tls");renderTitleLab();});
   $main.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{ navigator.clipboard.writeText(b.getAttribute("data-copy")); b.textContent="✓"; setTimeout(()=>b.textContent="コピー",900); });
@@ -355,7 +412,7 @@ async function renderTitleLab(){
 }
 function renderMaterial(){
   $main.innerHTML='<div style="padding:4px 2px">'
-   +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><button id="matBack" class="pill">← ステップ</button><span style="font-size:16px;font-weight:800;color:var(--ink)">📚 セミナー資料</span><button id="matReload" class="pill" style="margin-left:auto">↻ 再読み込み</button></div>'
+   +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><button id="matBack" class="pill lt">← ステップ</button><span style="font-size:16px;font-weight:800;color:var(--ink)">📚 セミナー資料</span><button id="matReload" class="pill lt" style="margin-left:auto">↻ 再読み込み</button></div>'
    +'<div style="font-size:11.5px;color:var(--muted);margin:0 2px 10px;line-height:1.5">キラさんのセミナー配布スライド（原典Drive）。Driveにアクセス権のあるGoogleアカウントでログイン中だと表示されます。白紙のときは「↻再読み込み」か「Driveで開く」。社外公開しないでください。</div>'
    +'<div style="position:relative;width:100%;aspect-ratio:4/3;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff"><iframe id="matFrame" src="'+SLIDE_EMBED+'" style="position:absolute;inset:0;width:100%;height:100%;border:0" allow="autoplay"></iframe></div>'
    +'<a class="mvid" style="color:#3a6df0;margin-top:10px" href="'+SLIDE_URL+'" target="_blank" rel="noopener">📊 Driveで開く↗（表示されない時はこちら）</a>'
@@ -386,7 +443,7 @@ function editGenre(id){
   const f={name:g.name||"",rep:g.rep||"",url:g.url||"",subs:g.subs||"",startYear:g.startYear||"",monthly:g.monthly||"",memo:g.memo||""};
   let gchart=g.chart||"";
   let h='<h3>'+(id?"ジャンルを編集":"ジャンルを追加")+'</h3>'+goalBannerHTML()+fld("ジャンル名","g_name",f.name,"text","例：focus music")+fld("代表チャンネル名","g_rep",f.rep,"text","vidIQで確認した代表例")+fld("代表チャンネルURL","g_url",f.url,"url","https://www.youtube.com/@...")+'<div class="two">'+fld("登録者数（万）","g_subs",f.subs,"number","例：132")+fld("開始年（西暦）","g_year",f.startYear,"number","例：2010")+'</div>'+fld("月間再生数（万）","g_monthly",f.monthly,"number","例：300（=300万）")+'<div class="live" id="g_live"></div>'+fld("結論メモ","g_memo",f.memo,"textarea","このジャンルにするか／気づき")
-    +'<div class="fld"><label>📈 vidIQグラフ画像 <span class="note">代表chの「Views gained」波形。ドラッグ＆ドロップ／Cmd+V貼付け／クリックで選択</span></label><div id="g_chart_drop" style="border:2px dashed var(--line);border-radius:10px;padding:16px;text-align:center;cursor:pointer;background:#fbfcfe;color:var(--muted);font-size:12px">'+(gchart?'<img src="'+gchart+'" style="max-width:100%;border-radius:8px;background:#0b1220;display:block;margin:0 auto">':'ここに画像をドラッグ＆ドロップ<br>または Cmd+V で貼り付け<br>（クリックで選択も可）')+'</div><input type="file" id="g_chart_file" accept="image/*" style="display:none"> <button type="button" class="pill" id="g_chart_clear" style="background:#eef0f4;color:#555;margin-top:6px">クリア</button></div>'
+    +'<div class="fld"><label>📈 vidIQグラフ画像 <span class="note">代表chの「Views gained」波形。ドラッグ＆ドロップ／Cmd+V貼付け／クリックで選択</span></label><div id="g_chart_drop" style="border:2px dashed var(--line);border-radius:10px;padding:16px;text-align:center;cursor:pointer;background:#fbfcfe;color:var(--muted);font-size:12px">'+(gchart?'<img src="'+gchart+'" style="max-width:100%;border-radius:8px;background:#0b1220;display:block;margin:0 auto">':'ここに画像をドラッグ＆ドロップ<br>または Cmd+V で貼り付け<br>（クリックで選択も可）')+'</div><input type="file" id="g_chart_file" accept="image/*" style="display:none"> <button type="button" class="pill lt" id="g_chart_clear" style="background:#eef0f4;color:#555;margin-top:6px">クリア</button></div>'
     +'<div class="acts">'+(id?'<button class="del" id="g_del">削除</button>':'')+'<button class="cancel" id="g_cancel">閉じる</button><button class="save" id="g_save">保存</button></div>';
   openSheet(h);
   var setChartPrev=function(){ var d=document.getElementById("g_chart_drop"); if(d) d.innerHTML=gchart?'<img src="'+gchart+'" style="max-width:100%;border-radius:8px;background:#0b1220;display:block;margin:0 auto">':'ここに画像をドラッグ＆ドロップ<br>または Cmd+V で貼り付け<br>（クリックで選択も可）'; };
@@ -688,7 +745,7 @@ function kpiCardHTML(){
    +'<input type="number" id="kpiRet" placeholder="維持率%" step="0.1" style="width:80px;padding:5px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px">'
    +'<select id="kpiLen" style="padding:5px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px"><option>1h</option><option>2h</option><option>3h</option><option>5h</option></select>'
    +'<input id="kpiNote" placeholder="メモ" style="flex:1;min-width:90px;padding:5px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:12px">'
-   +'<button class="pill" id="kpiAdd">記録</button></div>'
+   +'<button class="pill lt" id="kpiAdd">記録</button></div>'
    +((kpi||[]).length?'<table style="width:100%;border-collapse:collapse;font-size:11.5px"><tr style="color:var(--muted)"><th style="text-align:left">週</th><th>CTR</th><th>維持率</th><th>尺</th><th>メモ</th></tr>'+rows.join("")+'</table>':'<div style="font-size:11.5px;color:var(--muted)">まだ記録なし。YouTube Studio→アナリティクスの値を週1で入れると、キラ基準との差が見える</div>')
    +'</div>';
 }

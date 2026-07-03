@@ -1,0 +1,29 @@
+name: ベンチ先コメント 週次取得
+
+on:
+  schedule:
+    - cron: "0 22 * * 0"   # JST 月曜7:00 週次
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: yt-dlp導入
+        run: pip install yt-dlp
+      - name: コメント取得（各ベンチ勢い上位5本）
+        run: python tools/fetch_comments.py yt-dlp
+      - name: コミット
+        run: |
+          git config user.name "bench-bot"
+          git config user.email "bench-bot@users.noreply.github.com"
+          git add data/bench_comments.json
+          git diff --cached --quiet || git commit -m "💬 ベンチ先コメント自動更新 $(date +%Y%m%d)"
+          git push

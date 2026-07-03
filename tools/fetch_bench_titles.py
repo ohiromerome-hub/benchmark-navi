@@ -44,6 +44,7 @@ def fetch(channel_id):
             "title": e.findtext("a:title", "", NS),
             "published": (e.findtext("a:published", "", NS) or "")[:10],
             "views": int(stats.get("views", "0")) if stats is not None else 0,
+            "desc": (e.findtext("media:group/media:description", "", NS) or "")[:2000],
         })
     return videos
 
@@ -66,7 +67,7 @@ def main():
             rec = merged.get(v["id"])
             if rec is None:
                 rec = {"id": v["id"], "title": v["title"], "published": v["published"],
-                       "first_seen": today, "views": v["views"],
+                       "first_seen": today, "views": v["views"], "desc": v.get("desc",""),
                        "views_hist": {}, "title_hist": []}
                 merged[v["id"]] = rec
             else:
@@ -78,6 +79,7 @@ def main():
                     rec["title_hist"].append({"until": today, "title": rec.get("title")})
                     rec["title"] = v["title"]
                 rec["views"] = v["views"]
+                if v.get("desc"): rec["desc"] = v["desc"]
             rec["views_hist"][today] = v["views"]
             rec["last_seen"] = today
         videos = sorted(merged.values(), key=lambda r: r.get("published", ""), reverse=True)
