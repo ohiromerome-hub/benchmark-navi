@@ -18,6 +18,8 @@ from pathlib import Path
 
 CHANNELS = [
     {"name": "Flow365", "role": "bench", "channel_id": "UCzKizPkhLBGaTK5_y2s0yJw"},
+    {"name": "Mind365", "role": "bench", "channel_id": "UCpKf7HR_SAc5XJ1YD8rdluQ"},
+    {"name": "Focus Music 365", "role": "bench", "channel_id": "UCCcsYfuXbm_R3AgAMw7FZsg"},
     {"name": "Dive365", "role": "own", "channel_id": "UCLPixAVIYE5xZGMCC-WZXDw"},
 ]
 

@@ -262,7 +262,7 @@ function goalFormHTML(){ var a=goal.amount||'', r=goal.rpm||'2000', p=goal.purpo
 function render(){ document.body.classList.toggle("wide-hub",view==="genre"); if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="kaizen")renderKaizen(); else if(view==="sunodl")renderSunoDL(); else if(view==="material")renderMaterial(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else if(view==="title")renderTitleLab(); else renderMap(); }
 
 /* ===== 🏷 タイトルLab（キラ式TTP: 判定は常に「今のベンチ先の実タイトル」から機械的に） ===== */
-let TLDATA=null;
+let TLDATA=null, TLBENCH=null, TLSORT='momentum';
 function tlTokens(t){ return (t||"").toLowerCase().replace(/[–—\-,&|:!?.()\[\]]/g," ").split(/\s+/).filter(w=>w.length>1); }
 async function renderTitleLab(){
   $main.innerHTML='<div class="card">読み込み中…</div>';
@@ -291,13 +291,21 @@ async function renderTitleLab(){
       +(v.ng.length?'<span style="color:#c62828;font-weight:800">✗</span> ':'<span style="color:#2e7d32;font-weight:800">✓</span> ')
       +esc(v.title).replace(new RegExp('('+v.ng.map(w=>w.replace(/[.*+?^${}()|\\]/g,"\\$&")).join("|")+')','gi'), v.ng.length?'<mark style="background:#ffd8d6;color:#b71c1c;font-weight:800;border-radius:3px;padding:0 2px">$1</mark>':'$1')
       +' <span style="color:var(--muted)">('+esc(v.published)+' / '+v.views+'回)</span></div>').join('')+'</div>';
-  // ② ベンチ先タイトル（正解サンプル）＋日次の伸び（キラ:「ベンチ先を毎日チェック」）
+  // ② ベンチ先の実タイトル — チャンネル切替＋勢い順（古参有利バイアス排除・キラ:「今伸びてるchを真似る」）
   const dpd=v=>{const h=Object.entries(v.views_hist||{}).sort();if(h.length<2)return null;const a=h[h.length-2],b=h[h.length-1];const days=Math.max(1,Math.round((new Date(b[0])-new Date(a[0]))/864e5));return Math.round((b[1]-a[1])/days);};
-  h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">② ベンチ先の実タイトル（'+esc(bench[0]?bench[0].ch:"")+'・再生数順＝これが正解の型）</div>'
-   +'<div style="font-size:11px;color:var(--muted);margin-bottom:4px">「+n/日」は日次の伸び（記録2日目から表示）。キラ式: ベンチ先は毎日チェック</div>'
-   +bench.slice().sort((a,b)=>b.views-a.views).map(v=>{const d=dpd(v);return '<div style="display:flex;gap:8px;align-items:center;padding:6px 4px;border-top:1px solid var(--line);font-size:12px"><span style="color:var(--muted);min-width:62px;text-align:right;font-weight:700">'+v.views.toLocaleString()+'回</span><span style="min-width:56px;text-align:right;font-weight:800;color:'+(d>0?'#2e7d32':'#98a3b8')+'">'+(d===null?'ー':'+'+d+'/日')+'</span><span style="flex:1;line-height:1.45">'+esc(v.title)+'</span><button class="pill" data-copy="'+esc(v.title)+'" style="flex-shrink:0">コピー</button></div>';}).join('')+'</div>';
+  const mom=v=>{const days=Math.max(1,Math.round((new Date(TLDATA.updated)-new Date(v.published))/864e5));return Math.round(v.views/days);};
+  const benchChs=TLDATA.channels.filter(c=>c.role==="bench");
+  if(!TLBENCH||!benchChs.some(c=>c.channel_id===TLBENCH)) TLBENCH=benchChs[0]?benchChs[0].channel_id:null;
+  const cur=benchChs.find(c=>c.channel_id===TLBENCH)||{videos:[],name:""};
+  const curVids=cur.videos.map(v=>({...v,ch:cur.name}));
+  const SORTS={momentum:{lb:'🔥勢い順',fn:(a,b)=>mom(b)-mom(a)},views:{lb:'累計再生順',fn:(a,b)=>b.views-a.views},newest:{lb:'新着順',fn:(a,b)=>(b.published||'').localeCompare(a.published||'')}};
+  h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">② ベンチ先の実タイトル（'+benchChs.length+'ベンチ比較）</div>'
+   +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'+benchChs.map(c=>'<button class="pill" data-tlb="'+c.channel_id+'" style="'+(c.channel_id===TLBENCH?'background:var(--ink);color:#fff;border-color:var(--ink)':'')+'">'+esc(c.name)+'</button>').join('')+'</div>'
+   +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px">'+Object.entries(SORTS).map(([k,o])=>'<button class="pill" data-tls="'+k+'" style="font-size:11px;'+(TLSORT===k?'background:#eef3ff;border-color:var(--accent);color:var(--accent)':'')+'">'+o.lb+'</button>').join('')+'</div>'
+   +'<div style="font-size:11px;color:var(--muted);margin-bottom:4px">🔥勢い＝累計再生÷公開からの日数（古い動画ほど有利になる累計バイアスを排除）。「+n/日」は直近の日次伸び。キラ式:「今」伸びてる型を真似る</div>'
+   +curVids.slice().sort(SORTS[TLSORT].fn).map(v=>{const d=dpd(v),m=mom(v);return '<div style="display:flex;gap:8px;align-items:center;padding:6px 4px;border-top:1px solid var(--line);font-size:12px"><span style="min-width:66px;text-align:right;font-weight:800;color:#c05621">🔥'+m.toLocaleString()+'/日</span><span style="color:var(--muted);min-width:60px;text-align:right">'+v.views.toLocaleString()+'回</span><span style="min-width:52px;text-align:right;font-weight:700;color:'+(d>0?'#2e7d32':'#98a3b8')+'">'+(d===null?'ー':'+'+d+'/日')+'</span><span style="flex:1;line-height:1.45">'+esc(v.title)+' <span style="color:var(--muted);font-size:10px">'+esc((v.published||'').slice(5))+'</span></span><button class="pill" data-copy="'+esc(v.title)+'" style="flex-shrink:0">コピー</button></div>';}).join('')+'</div>';
   // ③ 頻出要素
-  h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">③ ベンチ先の頻出語（この語彙の範囲で組む）</div><div style="display:flex;flex-wrap:wrap;gap:6px">'
+  h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">③ ベンチ先の頻出語（全'+benchChs.length+'ベンチ合算・この語彙の範囲で組む）</div><div style="display:flex;flex-wrap:wrap;gap:6px">'
    +top.map(([w,n])=>'<span class="pill" style="cursor:default">'+esc(w)+' <b style="color:var(--muted)">'+n+'</b></span>').join('')+'</div>'
    +'<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5">型: <b>Deep Focus Music – [動詞] [状態名詞] for [用途1], [用途2] & [ベネフィット]</b>（動詞・状態・用途は上の頻出語と②の実例から選ぶ。無い語は使わない）</div></div>';
   // ④ チェッカー（TTP語彙 ＋ キラ:「刺さるKWをできるだけ前に」）
@@ -333,6 +341,8 @@ async function renderTitleLab(){
   $main.innerHTML=h;
   const cks=$main.querySelectorAll(".tlck"), msg=document.getElementById("tlckMsg");
   cks.forEach(c=>c.onchange=()=>{const n=Array.from(cks).filter(x=>x.checked).length; msg.textContent=n+"/5"+(n===5?" ✅ 投稿してよし！":""); msg.style.color=n===5?"#1b5e20":"var(--muted)";});
+  $main.querySelectorAll("[data-tlb]").forEach(b=>b.onclick=()=>{TLBENCH=b.getAttribute("data-tlb");renderTitleLab();});
+  $main.querySelectorAll("[data-tls]").forEach(b=>b.onclick=()=>{TLSORT=b.getAttribute("data-tls");renderTitleLab();});
   $main.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{ navigator.clipboard.writeText(b.getAttribute("data-copy")); b.textContent="✓"; setTimeout(()=>b.textContent="コピー",900); });
   const inp=document.getElementById("tlInput"), res=document.getElementById("tlResult");
   inp.oninput=()=>{ const t=inp.value; if(!t.trim()){res.innerHTML="";return;}
