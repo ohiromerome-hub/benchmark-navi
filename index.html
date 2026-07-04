@@ -137,8 +137,14 @@
   .grp-ok{background:#dff5ec;color:#159c73}
   .grp-no{background:#fdeede;color:#c2410c}
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
-  /* ── サイドバーのボタン最終上書き（基本ルールより後に置いて勝たせる）── */
+  /* ══ デスクトップ・サイドバーレイアウト（最終上書き: 必ずスタイル末尾に置く）══ */
   @media(min-width:1080px){
+    .app,body.wide-hub .app{max-width:none;margin:0;padding-left:236px}
+    main{max-width:1000px;width:100%;margin:0 auto;padding:26px 30px 80px}
+    header{background:rgba(255,255,255,.86);backdrop-filter:blur(10px);color:var(--text);border-bottom:1px solid var(--line);padding:13px 30px}
+    header .brand{color:var(--text)} header .sub{color:var(--muted)} header .who{color:var(--muted)}
+    header .pill{background:#fff;color:var(--ink-soft);border:1px solid var(--line)}
+    nav,body.wide-hub nav{position:fixed;top:0;bottom:0;left:0;right:auto;width:236px;max-width:none;margin:0;display:flex;flex-direction:column;justify-content:flex-start;gap:2px;padding:16px 12px;border-top:0;border-right:1px solid #1e293b;background:linear-gradient(180deg,#0f172a,#111c33)}
     nav button{flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:11px;padding:11px 13px;border-radius:10px;color:#8ea0bd}
     nav button .ic{font-size:16px} nav button .lb{font-size:13.5px;font-weight:700}
     nav button.on{background:rgba(99,102,241,.22);color:#fff}
