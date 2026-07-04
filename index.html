@@ -137,6 +137,13 @@
   .grp-ok{background:#dff5ec;color:#159c73}
   .grp-no{background:#fdeede;color:#c2410c}
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  /* ── サイドバーのボタン最終上書き（基本ルールより後に置いて勝たせる）── */
+  @media(min-width:1080px){
+    nav button{flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:11px;padding:11px 13px;border-radius:10px;color:#8ea0bd}
+    nav button .ic{font-size:16px} nav button .lb{font-size:13.5px;font-weight:700}
+    nav button.on{background:rgba(99,102,241,.22);color:#fff}
+    nav button:hover{color:#e2e8f0}
+  }
 </style>
 </head>
 <body>
@@ -528,7 +535,7 @@ function renderHub(){
   let h='<div class="view-title"><h2>ジャンル＆手本</h2><button class="addbtn" id="addG">＋ ジャンル</button></div>';
   h+='<div style="font-size:12px;color:var(--muted);margin:0 2px 10px">左＝稼げるジャンル（市場の証明）→ 右＝その中の今伸びてる手本ch。左から右へ繋がりを追える。</div>';
   var pt=personaText();
-  if(pt) h+='<div class="tap" id="hubPersona" style="background:#f6f2fc;border:1px solid #d9c9f4;border-radius:11px;padding:9px 12px;margin:0 2px 14px;cursor:pointer"><div style="font-size:11px;font-weight:700;color:#7a52c4;margin-bottom:2px">🎯 届けるペルソナ（このペルソナに刺さる手本chを選ぶ）</div><div style="font-size:13px;color:var(--ink);line-height:1.5">'+esc(pt)+'<span style="font-size:10px;color:var(--muted);margin-left:6px">タップで編集</span></div></div>';
+  if(pt) h+='<div class="tap" id="hubPersona" style="background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:11px;padding:9px 12px;margin:0 2px 14px;cursor:pointer"><div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:2px">🎯 届けるペルソナ（このペルソナに刺さる手本chを選ぶ）<span style="font-weight:500;color:var(--muted);margin-left:8px">タップで全文・編集</span></div><div style="font-size:13px;color:var(--ink);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">'+esc(pt)+'</div></div>';
   else h+='<div class="tap" id="hubPersona" style="background:#fff7e9;border:1px dashed #ffd98f;border-radius:11px;padding:9px 12px;margin:0 2px 14px;cursor:pointer;font-size:12px;color:#b8740a">🎯 ペルソナ未設定 — タップして「ステップ→目標・ペルソナ・ベンチ」で決めると、ここに表示されます</div>';
   if(!genres.length){ h+='<div class="empty"><div class="big">まずジャンルを1つ登録</div><div class="small">長期間安定して伸びているジャンルの代表chを登録 → その中の手本chをぶら下げます。</div></div>'; $main.innerHTML=h; document.getElementById("addG").onclick=()=>editGenre(null); return; }
   genres.forEach(g=>{
