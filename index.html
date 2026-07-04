@@ -307,7 +307,7 @@ function goalFormHTML(){ var a=goal.amount||'', r=goal.rpm||'2000', p=goal.purpo
 function render(){ document.body.classList.toggle("wide-hub",view==="genre"); if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="kaizen")renderKaizen(); else if(view==="sunodl")renderSunoDL(); else if(view==="material")renderMaterial(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else if(view==="title")renderTitleLab(); else renderMap(); }
 
 /* ===== 🏷 タイトルLab（キラ式TTP: 判定は常に「今のベンチ先の実タイトル」から機械的に） ===== */
-let TLDATA=null, TLBENCH=null, TLSORT='momentum', TLTAB='title', TLCOM=null;
+let TLDATA=null, TLBENCH=null, TLSORT='momentum', TLTAB='thumb', TLCOM=null;  // 初期タブ=サムネ（キラ式: 改善優先度①サムネ）
 function tlTokens(t){ return (t||"").toLowerCase().replace(/[–—\-,&|:!?.()\[\]]/g," ").split(/\s+/).filter(w=>w.length>1); }
 async function renderTitleLab(){
   $main.innerHTML='<div class="card">読み込み中…</div>';
@@ -321,7 +321,7 @@ async function renderTitleLab(){
   const mark=t=>tlTokens(t).filter(w=>!vocab.has(w)&&!/^\d+$/.test(w));
   const ngOwn=own.map(v=>({...v,ng:mark(v.title)}));
   const ngCount=ngOwn.filter(v=>v.ng.length).length;
-  const TABS={title:'📝 タイトル',thumb:'🖼 サムネ',desc:'📄 概要欄',voice:'💬 視聴者の声',check:'✅ チェック'};
+  const TABS={thumb:'🖼 サムネ',title:'📝 タイトル',desc:'📄 概要欄',voice:'💬 視聴者の声',check:'✅ チェック'};  // キラ式の改善優先順: ①サムネ→②タイトル→③中身
   let h='<div class="card" style="padding:10px 14px"><div style="font-weight:800;font-size:15px">🔬 ベンチ分析 <span style="font-size:11px;color:var(--muted);font-weight:600">ベンチ先の実タイトルが唯一の正解（キラ式TTP）・毎朝6:30自動更新（'+esc(TLDATA.updated||"?")+'時点）</span></div>'
    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+Object.entries(TABS).map(([k,lb])=>'<button class="pill lt" data-tlt="'+k+'" style="'+(TLTAB===k?'background:var(--ink);color:#fff;border-color:var(--ink)':'')+'">'+lb+'</button>').join('')+'</div></div>';
   const dpd=v=>{const h=Object.entries(v.views_hist||{}).sort();if(h.length<2)return null;const a=h[h.length-2],b=h[h.length-1];const days=Math.max(1,Math.round((new Date(b[0])-new Date(a[0]))/864e5));return Math.round((b[1]-a[1])/days);};
