@@ -250,19 +250,23 @@ async function saveCloud(){ if(!user)return;
     if(cur.exists()&&(cur.data().updatedAt||0)>lastLoadedAt){
       toast("他の端末での更新を検出。上書きを中止した。ページを再読み込みして最新を取得して",false); return;
     }
-    // 日次バックアップ（その日の初回保存前に現サーバー値を退避）
-    const today=new Date().toISOString().slice(0,10);
-    if(cur.exists()&&localStorage.getItem("bnav_bk")!==today){
-      await setDoc(doc(db,"users",user.uid,"backups",today),cur.data());
-      localStorage.setItem("bnav_bk",today);
-      // 30世代超は最古を削除
-      try{ const bs=await getDocs(collection(db,"users",user.uid,"backups"));
-        if(bs.size>30){ const ids=bs.docs.map(x=>x.id).sort(); await deleteDoc(doc(db,"users",user.uid,"backups",ids[0])); } }catch(_){}
-    }
+    // 本体保存を最優先で実行（バックアップ失敗に道連れにしない）
     const data=packData();
     await setDoc(userRef(),data);
     lastLoadedAt=data.updatedAt;
     toast("✓ 保存した",true);
+    // 日次バックアップ（その日の初回保存時に直前サーバー値を退避）
+    // ※Firestoreルールが users/{uid}/{document=**} を許可している場合のみ成功。失敗しても本体保存には影響しない
+    try{
+      const today=new Date().toISOString().slice(0,10);
+      if(cur.exists()&&localStorage.getItem("bnav_bk")!==today){
+        await setDoc(doc(db,"users",user.uid,"backups",today),cur.data());
+        localStorage.setItem("bnav_bk",today);
+        // 30世代超は最古を削除
+        const bs=await getDocs(collection(db,"users",user.uid,"backups"));
+        if(bs.size>30){ const ids=bs.docs.map(x=>x.id).sort(); await deleteDoc(doc(db,"users",user.uid,"backups",ids[0])); }
+      }
+    }catch(_){ /* ルール未対応環境ではバックアップのみスキップ */ }
   }catch(e){ console.error(e); toast("保存に失敗: "+e.message+"（データは前回保存分が残っとる）",false); }
 }
 async function openBackupSheet(){
