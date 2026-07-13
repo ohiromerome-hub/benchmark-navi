@@ -1,0 +1,32 @@
+name: VPH 毎時取得
+
+on:
+  schedule:
+    - cron: "12 * * * *"   # 毎時12分（RSSスナップショット→VPH計算）
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vph
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: VPHスナップショット＋計算
+        run: cd tools && python fetch_vph.py
+      - name: コミット
+        run: |
+          git config user.name "bench-bot"
+          git config user.email "bench-bot@users.noreply.github.com"
+          git add data/vph_log.json data/vph.json
+          git diff --cached --quiet || git commit -m "⚡ VPH自動更新 $(date -u +%Y%m%d%H%M)"
+          git pull --rebase
+          git push
