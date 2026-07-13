@@ -4,10 +4,16 @@
 仕組み:
   毎時、全チャンネルのRSSから各動画の累計再生数をスナップショットし
   data/vph_log.json に追記（直近7日分だけ保持）。
-  直近スナップショットとの差分から VPH = 増分再生数 ÷ 経過時間 を計算し
-  data/vph.json に書き出す（ベンチ分析の⚡VPHタブが読む）。
+  VPH = 約24時間前のスナップショットとの増分 ÷ 経過時間（vidIQと同スケール）。
+  bench_titles.json の views_hist（毎朝6:30の日次記録）も擬似スナップショット
+  として使うので、初回から24時間窓のVPHが出せる。
 
-vidIQのVPHは「今1時間あたり何回再生されているか」（視聴速度）。
+なぜ24時間窓か（2026-07-14 vidIQ実測との突き合わせで確認）:
+  YouTubeの公開再生数はバッチ更新（動画によって数時間〜1日凍結）のため、
+  1時間窓では増分が0か尖った値になり使いものにならない。
+  24時間窓ならvidIQ表示と±10〜20%で一致する（動きのある動画で検証:
+  自作11.4 vs vidIQ12.8 / 自作50.2 vs vidIQ47.8）。
+  カウンター凍結中の動画は vidIQ側も自作側も計測タイミング次第でズレる。
 公開直後はVPHが大きくなりがちなので、UIで公開48時間以内は⚠表示する。
 
 GitHub Actionsで毎時実行（.github/workflows/vph.yml）。
@@ -24,8 +30,9 @@ from fetch_bench_titles import CHANNELS, NS
 BASE = Path(__file__).resolve().parent.parent / "data"
 LOG = BASE / "vph_log.json"
 OUT = BASE / "vph.json"
-KEEP_DAYS = 7          # スナップショット保持期間
-MIN_WINDOW_MIN = 50    # VPH計算に使う最小の経過時間（分）
+KEEP_DAYS = 7            # スナップショット保持期間
+TARGET_WINDOW_H = 24     # VPH計算の目標窓（vidIQと同スケール）
+MIN_WINDOW_H = 6         # これ未満の窓では計算しない（バッチ更新ノイズ対策）
 
 
 def fetch_views(channel_id):
@@ -43,6 +50,27 @@ def fetch_views(channel_id):
             "title": e.findtext("a:title", "", NS),
             "published": e.findtext("a:published", "", NS),
         }
+    return out
+
+
+def pseudo_snaps_from_titles(cutoff):
+    """毎朝6:30(JST)の日次記録 views_hist を擬似スナップショットに変換する。
+    fetch_bench_titles.py は UTCの date.today() をキーにするので、
+    実行時刻はそのUTC日付の21:30頃＝キー日付+21:30Z とみなす"""
+    path = BASE / "bench_titles.json"
+    if not path.exists():
+        return []
+    bt = json.load(open(path))
+    by_date = {}
+    for ch in bt.get("channels", []):
+        for v in ch.get("videos", []):
+            for d, val in (v.get("views_hist") or {}).items():
+                by_date.setdefault(d, {})[v["id"]] = val
+    out = []
+    for d, views in by_date.items():
+        ts = f"{d}T21:30:00+00:00"
+        if ts >= cutoff:
+            out.append({"ts": ts, "views": views})
     return out
 
 
@@ -64,29 +92,32 @@ def main():
     snaps.append({"ts": now.isoformat(timespec="seconds"), "views": views})
     json.dump({"snaps": snaps}, open(LOG, "w"), ensure_ascii=False)
 
-    # ③ VPH計算: 最新と「MIN_WINDOW_MIN分以上前で最も新しい」スナップショットを比較
+    # ③ VPH計算: 「約24時間前」に最も近いスナップショットと比較（6時間未満の窓は使わない）
+    #    毎朝6:30の日次記録（bench_titles.jsonのviews_hist）も擬似スナップショットとして使う
+    pool = snaps[:-1] + pseudo_snaps_from_titles(cutoff)
     latest = snaps[-1]
-    base = None
-    for s in reversed(snaps[:-1]):
-        dt = (datetime.datetime.fromisoformat(latest["ts"])
-              - datetime.datetime.fromisoformat(s["ts"])).total_seconds() / 60
-        if dt >= MIN_WINDOW_MIN:
-            base = s
-            break
+    t_latest = datetime.datetime.fromisoformat(latest["ts"])
+    cands = []  # (経過時間h, views辞書)
+    for s in pool:
+        h = (t_latest - datetime.datetime.fromisoformat(s["ts"])).total_seconds() / 3600
+        if h >= MIN_WINDOW_H:
+            cands.append((h, s["views"]))
     vph = {}
-    if base:
-        hours = (datetime.datetime.fromisoformat(latest["ts"])
-                 - datetime.datetime.fromisoformat(base["ts"])).total_seconds() / 3600
-        for vid, v_now in latest["views"].items():
-            if vid not in base["views"] or vid not in meta:
-                continue  # 新登場動画は次回から（公開直後の異常値も避ける）
-            delta = v_now - base["views"][vid]
-            vph[vid] = {
-                "vph": round(max(0, delta) / hours, 1),
-                "window_h": round(hours, 2),
-                "views": v_now,
-                **meta[vid],
-            }
+    for vid, v_now in latest["views"].items():
+        if vid not in meta:
+            continue
+        # この動画を含み、目標24時間に最も近い基準スナップショットを選ぶ
+        # （新着動画は公開6時間後から計測開始＝公開直後の異常値も避ける）
+        avail = [(h, vs[vid]) for h, vs in cands if vid in vs]
+        if not avail:
+            continue
+        hours, v_base = min(avail, key=lambda x: abs(x[0] - TARGET_WINDOW_H))
+        vph[vid] = {
+            "vph": round(max(0, v_now - v_base) / hours, 1),
+            "window_h": round(hours, 2),
+            "views": v_now,
+            **meta[vid],
+        }
 
     jst = now.astimezone(datetime.timezone(datetime.timedelta(hours=9)))
     json.dump({"updated": jst.isoformat(timespec="seconds"),
