@@ -16,12 +16,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: ハブのベンチ先をchannels.jsonへ同期
+        run: python tools/sync_channels.py
       - name: タイトル取得
         run: python tools/fetch_bench_titles.py
       - name: コミット
         run: |
           git config user.name "bench-bot"
           git config user.email "bench-bot@users.noreply.github.com"
-          git add data/bench_titles.json
+          git add data/bench_titles.json data/channels.json
           git diff --cached --quiet || git commit -m "🏷 ベンチ先タイトル自動更新 $(date +%Y%m%d)"
+          git pull --rebase
           git push

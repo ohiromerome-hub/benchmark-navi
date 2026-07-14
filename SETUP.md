@@ -32,10 +32,20 @@ service cloud.firestore {
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
+    match /public_channels/{doc} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
   }
 }
 ```
 これで「ログイン本人だけが自分のデータを読み書きできる」状態になります。
+
+`public_channels` はベンチ先チャンネルの公開ミラー（2026-07-14追加）:
+ジャンル＆手本で登録した手本の「チャンネル名とURL」だけをアプリが書き込み、
+GitHub Actions（tools/sync_channels.py）が無認証で読んでベンチ分析・VPHの
+取得対象チャンネル（data/channels.json）へ自動反映します。
+個人データ本体（users/…）は従来どおり本人のみアクセス可能です。
 
 ### Firebase のキーを取得
 6. 左上「プロジェクトの概要」横の歯車 →「プロジェクトの設定」

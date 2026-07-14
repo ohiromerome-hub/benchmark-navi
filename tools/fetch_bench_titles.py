@@ -16,12 +16,20 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-CHANNELS = [
+# チャンネル一覧: data/channels.json（ジャンル＆手本ハブからsync_channels.pyが同期）を
+# 優先し、無ければ従来のハードコードにフォールバックする
+_DEFAULT_CHANNELS = [
     {"name": "Flow365", "role": "bench", "channel_id": "UCzKizPkhLBGaTK5_y2s0yJw"},
     {"name": "Mind365", "role": "bench", "channel_id": "UCpKf7HR_SAc5XJ1YD8rdluQ"},
     {"name": "Focus Music 365", "role": "bench", "channel_id": "UCCcsYfuXbm_R3AgAMw7FZsg"},
     {"name": "Dive365", "role": "own", "channel_id": "UCLPixAVIYE5xZGMCC-WZXDw"},
 ]
+_CH_FILE = Path(__file__).resolve().parent.parent / "data" / "channels.json"
+try:
+    CHANNELS = json.load(open(_CH_FILE))
+    assert isinstance(CHANNELS, list) and all(c.get("channel_id") for c in CHANNELS)
+except Exception:
+    CHANNELS = _DEFAULT_CHANNELS
 
 NS = {
     "a": "http://www.w3.org/2005/Atom",

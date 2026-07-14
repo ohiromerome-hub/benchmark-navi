@@ -267,6 +267,14 @@ async function saveCloud(){ if(!user)return;
         if(bs.size>30){ const ids=bs.docs.map(x=>x.id).sort(); await deleteDoc(doc(db,"users",user.uid,"backups",ids[0])); }
       }
     }catch(_){ /* ルール未対応環境ではバックアップのみスキップ */ }
+    // ベンチ先の公開ミラー: ジャンルに接続された手本の{name,url}だけを public_channels/main へ
+    // （GitHub Actionsのsync_channels.pyが読み、ベンチ分析・VPHのチャンネルへ自動反映する。
+    //   公開されるのはYouTubeチャンネル名とURLのみ。ルール未設定なら静かにスキップ）
+    try{
+      const gids=new Set(genres.map(g=>g.id));
+      const pub=benches.filter(b=>b.url&&gids.has(b.genreId)).map(b=>({name:b.name||"",url:b.url}));
+      await setDoc(doc(db,"public_channels","main"),{channels:pub,updatedAt:Date.now()});
+    }catch(_){ /* ルール未設定ならスキップ（SETUP.md参照） */ }
   }catch(e){ console.error(e); toast("保存に失敗: "+e.message+"（データは前回保存分が残っとる）",false); }
 }
 async function openBackupSheet(){
@@ -311,7 +319,7 @@ function goalFormHTML(){ var a=goal.amount||'', r=goal.rpm||'2000', p=goal.purpo
 function render(){ document.body.classList.toggle("wide-hub",view==="genre"); if(!user&&configured){renderGate();return;} if(view==="genre")renderHub(); else if(view==="bench")renderBench(); else if(view==="track")renderTrack(); else if(view==="kaizen")renderKaizen(); else if(view==="sunodl")renderSunoDL(); else if(view==="material")renderMaterial(); else if(view==="qa")renderQA(); else if(view==="step")renderStep(); else if(view==="title")renderTitleLab(); else renderMap(); }
 
 /* ===== 🏷 タイトルLab（キラ式TTP: 判定は常に「今のベンチ先の実タイトル」から機械的に） ===== */
-let TLDATA=null, TLBENCH=null, TLSORT='momentum', TLTAB='thumb', TLCOM=null, TLVPH=null;  // 初期タブ=サムネ（キラ式: 改善優先度①サムネ）
+let TLDATA=null, TLBENCH=null, TLSORT='momentum', TLTAB='thumb', TLCOM=null, TLVPH=null, TLVPHOPEN=new Set();  // 初期タブ=サムネ（キラ式: 改善優先度①サムネ）
 function tlTokens(t){ return (t||"").toLowerCase().replace(/[–—\-,&|:!?.()\[\]]/g," ").split(/\s+/).filter(w=>w.length>1); }
 async function renderTitleLab(){
   $main.innerHTML='<div class="card">読み込み中…</div>';
@@ -383,21 +391,27 @@ async function renderTitleLab(){
       h+='<div class="card">VPHデータがまだありません。GitHub Actions「VPH 毎時取得」が2回実行されると表示されます（毎時12分に自動実行・初回から約2時間後）。</div>';
     }else{
       const star=v=>{const x=vphOf(v),d=agdays(v);return x!=null&&x>=100&&d>2&&d<=31;};
-      const row=v=>{const x=vphOf(v);return '<div style="display:flex;gap:8px;align-items:center;padding:6px 4px;border-top:1px solid var(--line);font-size:12px">'
-        +'<a href="https://youtu.be/'+v.id+'" target="_blank" rel="noopener"><img src="https://i.ytimg.com/vi/'+v.id+'/default.jpg" style="width:72px;border-radius:6px;display:block;aspect-ratio:16/9;object-fit:cover;background:#eee" loading="lazy"></a>'
-        +'<span style="min-width:70px;text-align:right">'+vphChip(v)+'</span>'
-        +'<span style="color:var(--muted);min-width:64px;text-align:right">'+v.views.toLocaleString()+'回</span>'
-        +'<span style="flex:1;line-height:1.45">'+(star(v)?'<span style="color:#e65100;font-weight:800">⭐参考推奨</span> ':'')+ageBadge(v)+' '+esc(v.title)+' <span style="color:var(--muted);font-size:10px">'+esc((v.published||'').slice(0,10))+'</span></span>'
-        +'<button class="pill lt" data-copy="'+esc(v.title)+'" style="flex-shrink:0">コピー</button></div>';};
-      h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">ベンチ先のVPHランキング（'+esc(cur.name)+'）</div>'
+      // 大サムネのグリッドカード（サムネ解析用）。タイトルはカードクリックで展開
+      const cardV=v=>{const openx=TLVPHOPEN.has(v.id);return '<div data-vphx="'+v.id+'" style="cursor:pointer;background:#fff;border:1px solid '+(star(v)?'#e65100':'var(--line)')+';border-radius:10px;overflow:hidden">'
+        +'<img src="https://i.ytimg.com/vi/'+v.id+'/mqdefault.jpg" style="width:100%;display:block;aspect-ratio:16/9;object-fit:cover;background:#eee" loading="lazy">'
+        +'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px;padding:5px 7px">'
+          +vphChip(v)+(star(v)?'<span style="color:#e65100;font-weight:800">⭐推奨</span>':'')+ageBadge(v)
+          +'<span style="color:var(--muted);margin-left:auto">'+v.views.toLocaleString()+'回</span></div>'
+        +(openx?'<div style="padding:0 8px 8px;font-size:12px;line-height:1.55;border-top:1px dashed var(--line)"><div style="margin-top:6px">'+esc(v.title)+'</div>'
+          +'<div style="color:var(--muted);font-size:10.5px;margin:4px 0">'+esc((v.published||'').slice(0,10))+' 公開・⚡は直近'+(TLVPH.vph[v.id]?TLVPH.vph[v.id].window_h:'?')+'h窓</div>'
+          +'<div style="display:flex;gap:6px"><button class="pill lt" data-copy="'+esc(v.title)+'">タイトルをコピー</button>'
+          +'<a class="pill lt" style="text-decoration:none" href="https://youtu.be/'+v.id+'" target="_blank" rel="noopener">▶ YouTubeで開く</a></div></div>':'')
+        +'</div>';};
+      const grid=vs=>'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px">'+vs.map(cardV).join('')+'</div>';
+      h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">ベンチ先のVPHランキング（'+esc(cur.name)+'・カードをタップでタイトル表示）</div>'
        +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'+benchChs.map(c=>'<button class="pill lt" data-tlb="'+c.channel_id+'" style="'+(c.channel_id===TLBENCH?'background:var(--ink);color:#fff;border-color:var(--ink)':'')+'">'+esc(c.name)+'</button>').join('')+'</div>'
-       +'<div style="font-size:11px;color:var(--muted);margin-bottom:4px">⭐参考推奨 ＝ VPH100以上 × 公開1ヶ月以内 × 公開直後（48h）ではない。TTPするならまずここから</div>'
-       +curVids.filter(v=>vphOf(v)!=null).sort((a,b)=>(vphOf(b)||0)-(vphOf(a)||0)).map(row).join('')
+       +'<div style="font-size:11px;color:var(--muted);margin-bottom:8px">⭐推奨（オレンジ枠）＝ VPH100以上 × 公開1ヶ月以内 × 公開直後（48h）ではない。サムネの構図・文字量・色をここから盗む</div>'
+       +grid(curVids.filter(v=>vphOf(v)!=null).sort((a,b)=>(vphOf(b)||0)-(vphOf(a)||0)))
        +'</div>';
       if(own.length){
-        h+='<div class="card"><div style="font-weight:800;margin-bottom:4px">自分の動画のVPH（Dive365）</div>'
-         +own.filter(v=>vphOf(v)!=null).sort((a,b)=>(vphOf(b)||0)-(vphOf(a)||0)).map(row).join('')
-         +'<div style="font-size:10.5px;color:var(--muted);margin-top:6px">ベンチ先と自分のVPHの差 ＝ 「今」の評価の差。リネーム・サムネ改善の前後でVPHがどう動くかも見る</div></div>';
+        h+='<div class="card"><div style="font-weight:800;margin-bottom:8px">自分の動画のVPH（Dive365）</div>'
+         +grid(own.filter(v=>vphOf(v)!=null).sort((a,b)=>(vphOf(b)||0)-(vphOf(a)||0)))
+         +'<div style="font-size:10.5px;color:var(--muted);margin-top:8px">ベンチ先と自分のVPHの差 ＝ 「今」の評価の差。リネーム・サムネ改善の前後でVPHがどう動くかも見る</div></div>';
       }
     }
   }
@@ -488,6 +502,7 @@ async function renderTitleLab(){
   $main.querySelectorAll("[data-tlt]").forEach(b=>b.onclick=()=>{TLTAB=b.getAttribute("data-tlt");renderTitleLab();});
   $main.querySelectorAll("[data-tlb]").forEach(b=>b.onclick=()=>{TLBENCH=b.getAttribute("data-tlb");renderTitleLab();});
   $main.querySelectorAll("[data-tls]").forEach(b=>b.onclick=()=>{TLSORT=b.getAttribute("data-tls");renderTitleLab();});
+  $main.querySelectorAll("[data-vphx]").forEach(el=>el.onclick=e=>{ if(e.target.closest("[data-copy],a"))return; const id=el.getAttribute("data-vphx"); TLVPHOPEN.has(id)?TLVPHOPEN.delete(id):TLVPHOPEN.add(id); renderTitleLab(); });
   $main.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{ navigator.clipboard.writeText(b.getAttribute("data-copy")); b.textContent="✓"; setTimeout(()=>b.textContent="コピー",900); });
   const inp=document.getElementById("tlInput"), res=document.getElementById("tlResult");
   inp.oninput=()=>{ const t=inp.value; if(!t.trim()){res.innerHTML="";return;}
