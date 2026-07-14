@@ -77,13 +77,25 @@ def pseudo_snaps_from_titles(cutoff):
 def main():
     now = datetime.datetime.now(datetime.timezone.utc)
 
-    # ① 今回スナップショット
+    # ① 今回スナップショット（一時的な5xxはリトライ→ダメならそのchだけスキップ）
+    import time
     views, meta = {}, {}
     for ch in CHANNELS:
-        for vid, v in fetch_views(ch["channel_id"]).items():
+        for attempt in range(3):
+            try:
+                fetched = fetch_views(ch["channel_id"])
+                break
+            except Exception as e:
+                print(f"RSS失敗 {ch['name']}（{attempt + 1}/3）: {str(e)[:80]}")
+                time.sleep(10 * (attempt + 1))
+        else:
+            continue
+        for vid, v in fetched.items():
             views[vid] = v["views"]
             meta[vid] = {"title": v["title"], "published": v["published"],
                          "ch": ch["name"], "role": ch["role"]}
+    if not views:
+        raise SystemExit("全チャンネルのRSS取得に失敗（スナップショットなし・前回データ維持）")
 
     # ② ログへ追記（7日より古いものは捨てる）
     log = json.load(open(LOG)) if LOG.exists() else {"snaps": []}
