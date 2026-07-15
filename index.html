@@ -188,7 +188,7 @@ const configured = !String(firebaseConfig.apiKey).startsWith("PASTE_");
 let auth=null, db=null, user=null;
 if(configured){ const fapp=initializeApp(firebaseConfig); auth=getAuth(fapp); db=getFirestore(fapp); }
 
-let genres=[], benches=[], qas=[], steps={}, daily={}, goal={}, tracklog={}, kaizen=[], sunodl=[], view="genre";
+let genres=[], benches=[], qas=[], steps={}, daily={}, goal={}, tracklog={}, kaizen=[], sunodl=[], thumbnotes=[], view="genre";
 let trackMetric="subs";
 let sunoEditId;
 const $main=document.getElementById("main"), $auth=document.getElementById("auth"), $scrim=document.getElementById("scrim"), $sheet=document.getElementById("sheet");
@@ -232,8 +232,8 @@ function userRef(){ return doc(db,"users",user.uid); }
    日次バックアップ: users/{uid}/backups/{YYYY-MM-DD} に保存前スナップショット（30世代）*/
 let loadFailed=false, lastLoadedAt=0, kpi=[];
 function toast(msg,ok){ let t=document.getElementById("toast"); if(!t){t=document.createElement("div");t.id="toast";t.style.cssText="position:fixed;bottom:74px;left:50%;transform:translateX(-50%);padding:9px 18px;border-radius:99px;font-size:12.5px;font-weight:700;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.25);transition:opacity .3s";document.body.appendChild(t);} t.style.background=ok?"#1b5e20":"#b71c1c"; t.style.color="#fff"; t.textContent=msg; t.style.opacity="1"; clearTimeout(t._h); t._h=setTimeout(()=>t.style.opacity="0",2600); }
-function applyData(d){ genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; goal=d.goal||{}; tracklog=d.tracklog||{}; kaizen=d.kaizen||[]; sunodl=d.sunodl||[]; kpi=d.kpi||[]; lastLoadedAt=d.updatedAt||0; }
-function packData(){ return {genres,benches,qas,steps,daily,goal,tracklog,kaizen,sunodl,kpi,updatedAt:Date.now()}; }
+function applyData(d){ genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; goal=d.goal||{}; tracklog=d.tracklog||{}; kaizen=d.kaizen||[]; sunodl=d.sunodl||[]; thumbnotes=d.thumbnotes||[]; kpi=d.kpi||[]; lastLoadedAt=d.updatedAt||0; }
+function packData(){ return {genres,benches,qas,steps,daily,goal,tracklog,kaizen,sunodl,thumbnotes,kpi,updatedAt:Date.now()}; }
 async function loadCloud(){
   try{ const snap=await getDoc(userRef());
     if(snap.exists()){ applyData(snap.data()); }
@@ -320,6 +320,7 @@ function render(){ document.body.classList.toggle("wide-hub",view==="genre"); if
 
 /* ===== 🏷 タイトルLab（キラ式TTP: 判定は常に「今のベンチ先の実タイトル」から機械的に） ===== */
 let TLDATA=null, TLBENCH=null, TLSORT='momentum', TLTAB='thumb', TLCOM=null, TLVPH=null, TLVPHOPEN=new Set();  // 初期タブ=サムネ（キラ式: 改善優先度①サムネ）
+let TLVPHCH='__all__', TLVPHDIR='top', TLVPHSEL=[], TLVPHNOTE='';  // VPHタブ: 混合ランキングのch絞り込み・TOP/ワースト表示・サムネ比較の選択と下書き
 function tlTokens(t){ return (t||"").toLowerCase().replace(/[–—\-,&|:!?.()\[\]]/g," ").split(/\s+/).filter(w=>w.length>1); }
 async function renderTitleLab(){
   $main.innerHTML='<div class="card">読み込み中…</div>';
@@ -391,27 +392,58 @@ async function renderTitleLab(){
       h+='<div class="card">VPHデータがまだありません。GitHub Actions「VPH 毎時取得」が2回実行されると表示されます（毎時12分に自動実行・初回から約2時間後）。</div>';
     }else{
       const star=v=>{const x=vphOf(v),d=agdays(v);return x!=null&&x>=100&&d>2&&d<=31;};
-      // 大サムネのグリッドカード（サムネ解析用）。タイトルはカードクリックで展開
-      const cardV=v=>{const openx=TLVPHOPEN.has(v.id);return '<div data-vphx="'+v.id+'" style="cursor:pointer;background:#fff;border:1px solid '+(star(v)?'#e65100':'var(--line)')+';border-radius:10px;overflow:hidden">'
+      const ROLE_C={'TOP':'#e65100','ワースト':'#607d8b','自分':'#1565c0'};
+      const roleBadge=r=>'<span style="background:'+(ROLE_C[r]||'#999')+';color:#fff;border-radius:4px;padding:0 5px;font-size:10px;font-weight:800">'+r+'</span>';
+      const selHas=id=>TLVPHSEL.some(s=>s.id===id);
+      // 大サムネのグリッドカード（サムネ解析用）。タイトルはカードクリックで展開。「＋比較」でサムネ比較メモへ
+      const cardV=(v,role)=>{const openx=TLVPHOPEN.has(v.id),sel=selHas(v.id);return '<div data-vphx="'+v.id+'" style="cursor:pointer;background:#fff;border:'+(sel?'2px solid '+ROLE_C[role]:'1px solid '+(star(v)?'#e65100':'var(--line)'))+';border-radius:10px;overflow:hidden">'
         +'<img src="https://i.ytimg.com/vi/'+v.id+'/mqdefault.jpg" style="width:100%;display:block;aspect-ratio:16/9;object-fit:cover;background:#eee" loading="lazy">'
         +'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px;padding:5px 7px">'
           +vphChip(v)+(star(v)?'<span style="color:#e65100;font-weight:800">⭐推奨</span>':'')+ageBadge(v)
-          +'<span style="color:var(--muted);margin-left:auto">'+v.views.toLocaleString()+'回</span></div>'
+          +(TLVPHCH==='__all__'&&v.ch?'<span style="color:var(--muted);font-size:10px">'+esc(v.ch)+'</span>':'')
+          +'<span style="color:var(--muted);margin-left:auto">'+v.views.toLocaleString()+'回</span>'
+          +'<button class="pill lt" data-vphsel="'+v.id+'" data-vphrole="'+role+'" style="font-size:10px;flex-shrink:0;'+(sel?'background:'+ROLE_C[role]+';color:#fff;border-color:'+ROLE_C[role]:'')+'">'+(sel?'✓比較中':'＋比較')+'</button></div>'
         +(openx?'<div style="padding:0 8px 8px;font-size:12px;line-height:1.55;border-top:1px dashed var(--line)"><div style="margin-top:6px">'+esc(v.title)+'</div>'
           +'<div style="color:var(--muted);font-size:10.5px;margin:4px 0">'+esc((v.published||'').slice(0,10))+' 公開・⚡は直近'+(TLVPH.vph[v.id]?TLVPH.vph[v.id].window_h:'?')+'h窓</div>'
           +'<div style="display:flex;gap:6px"><button class="pill lt" data-copy="'+esc(v.title)+'">タイトルをコピー</button>'
           +'<a class="pill lt" style="text-decoration:none" href="https://youtu.be/'+v.id+'" target="_blank" rel="noopener">▶ YouTubeで開く</a></div></div>':'')
         +'</div>';};
-      const grid=vs=>'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px">'+vs.map(cardV).join('')+'</div>';
-      h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">ベンチ先のVPHランキング（'+esc(cur.name)+'・カードをタップでタイトル表示）</div>'
-       +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'+benchChs.map(c=>'<button class="pill lt" data-tlb="'+c.channel_id+'" style="'+(c.channel_id===TLBENCH?'background:var(--ink);color:#fff;border-color:var(--ink)':'')+'">'+esc(c.name)+'</button>').join('')+'</div>'
-       +'<div style="font-size:11px;color:var(--muted);margin-bottom:8px">⭐推奨（オレンジ枠）＝ VPH100以上 × 公開1ヶ月以内 × 公開直後（48h）ではない。サムネの構図・文字量・色をここから盗む</div>'
-       +grid(curVids.filter(v=>vphOf(v)!=null).sort((a,b)=>(vphOf(b)||0)-(vphOf(a)||0)))
+      const grid=(vs,role)=>'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px">'+vs.map(v=>cardV(v,role)).join('')+'</div>';
+      // 🆚 サムネ比較メモ: TOP・ワースト・自分を並べて「どこに課題・修正点があるか」を言語化して記録
+      if(TLVPHSEL.length){
+        h+='<div class="card" style="border-color:#1565c0"><div style="font-weight:800;margin-bottom:6px">🆚 サムネ比較メモ（'+TLVPHSEL.length+'枚選択中）</div>'
+         +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:8px">'
+         +TLVPHSEL.map(s=>'<div><img src="https://i.ytimg.com/vi/'+s.id+'/mqdefault.jpg" title="'+esc(s.title||'')+'" style="width:100%;border-radius:8px;display:block;aspect-ratio:16/9;object-fit:cover;background:#eee;border:2px solid '+(ROLE_C[s.role]||'#999')+'"><div style="display:flex;gap:4px;align-items:center;margin-top:3px">'+roleBadge(s.role)+(s.vph!=null?'<span style="font-size:10px;font-weight:700">⚡'+s.vph+'/時</span>':'')+'<button class="pill lt" data-vphunsel="'+s.id+'" style="margin-left:auto;font-size:10px">✕</button></div></div>').join('')+'</div>'
+         +'<textarea id="tnText" rows="3" style="width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:8px;border:1px solid var(--line);border-radius:8px" placeholder="どこに課題・修正点がある？（例: TOPは文字3語で大きく高コントラスト。自分のは文字7語で小さい→次作は3語・光の演出を寄せる）">'+esc(TLVPHNOTE)+'</textarea>'
+         +'<div style="display:flex;gap:6px;margin-top:8px"><button class="pill lt" id="tnSave" style="background:var(--ink);color:#fff;border-color:var(--ink)">💾 メモを保存</button><button class="pill lt" id="tnClear">選択をクリア</button></div>'
+         +'<div style="font-size:10.5px;color:var(--muted);margin-top:6px">保存するとクラウドに記録され、下の「📒履歴」にサムネつきで残る（リネーム・サムネ改善の根拠メモになる）</div></div>';
+      }else{
+        h+='<div class="card"><div style="font-weight:800">🆚 サムネ比較メモ</div><div style="font-size:12px;color:var(--muted);margin-top:4px;line-height:1.6">カードの「＋比較」で <b style="color:#e65100">TOP</b>・<b style="color:#607d8b">ワースト</b>・<b style="color:#1565c0">自分</b> のサムネを選ぶと、ここに並べて「どこに課題・修正点があるか」を記録できる</div></div>';
+      }
+      // ベンチ先ランキング（既定=全ベンチ混合。チャンネル絞り込みとTOP/ワースト切替つき）
+      const rankSrc=(TLVPHCH==='__all__'?bench:(()=>{const c=benchChs.find(x=>x.channel_id===TLVPHCH);return c?c.videos.map(v=>({...v,ch:c.name})):[];})()).filter(v=>vphOf(v)!=null);
+      const ranked=rankSrc.slice().sort((a,b)=>TLVPHDIR==='top'?(vphOf(b)-vphOf(a)):(vphOf(a)-vphOf(b)));
+      const bRole=TLVPHDIR==='top'?'TOP':'ワースト';
+      h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">ベンチ先のVPHランキング（'+(TLVPHCH==='__all__'?'全'+benchChs.length+'ベンチ混合':esc((benchChs.find(c=>c.channel_id===TLVPHCH)||{name:''}).name))+'・カードをタップでタイトル表示）</div>'
+       +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><button class="pill lt" data-vphch="__all__" style="'+(TLVPHCH==='__all__'?'background:var(--ink);color:#fff;border-color:var(--ink)':'')+'">🌐 全ベンチ混合</button>'+benchChs.map(c=>'<button class="pill lt" data-vphch="'+c.channel_id+'" style="'+(c.channel_id===TLVPHCH?'background:var(--ink);color:#fff;border-color:var(--ink)':'')+'">'+esc(c.name)+'</button>').join('')+'</div>'
+       +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><button class="pill lt" data-vphdir="top" style="'+(TLVPHDIR==='top'?'background:#e65100;color:#fff;border-color:#e65100':'')+'">⬆ TOP（今伸びてる）</button><button class="pill lt" data-vphdir="worst" style="'+(TLVPHDIR==='worst'?'background:#607d8b;color:#fff;border-color:#607d8b':'')+'">⬇ ワースト（再生されとらん）</button></div>'
+       +(TLVPHDIR==='top'
+         ?'<div style="font-size:11px;color:var(--muted);margin-bottom:8px">⭐推奨（オレンジ枠）＝ VPH100以上 × 公開1ヶ月以内 × 公開直後（48h）ではない。サムネの構図・文字量・色をここから盗む</div>'
+         :'<div style="font-size:11px;color:var(--muted);margin-bottom:8px">ワースト＝ベンチ先でも「今」再生されとらん動画（反面教師）。自分のサムネ・タイトルがこっち側に似とらんかを確認する</div>')
+       +grid(ranked,bRole)
        +'</div>';
       if(own.length){
         h+='<div class="card"><div style="font-weight:800;margin-bottom:8px">自分の動画のVPH（Dive365）</div>'
-         +grid(own.filter(v=>vphOf(v)!=null).sort((a,b)=>(vphOf(b)||0)-(vphOf(a)||0)))
+         +grid(own.filter(v=>vphOf(v)!=null).sort((a,b)=>(vphOf(b)||0)-(vphOf(a)||0)),'自分')
          +'<div style="font-size:10.5px;color:var(--muted);margin-top:8px">ベンチ先と自分のVPHの差 ＝ 「今」の評価の差。リネーム・サムネ改善の前後でVPHがどう動くかも見る</div></div>';
+      }
+      // 📒 保存済みのサムネ課題メモ
+      if(thumbnotes.length){
+        h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">📒 サムネ課題メモの履歴（'+thumbnotes.length+'件）</div>'
+         +thumbnotes.map(n=>'<div style="border-top:1px solid var(--line);padding:8px 2px"><div style="font-size:10.5px;color:var(--muted)">'+esc(n.date||'')+'</div>'
+           +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin:5px 0">'+(n.items||[]).map(it=>'<a href="https://youtu.be/'+it.id+'" target="_blank" rel="noopener" title="'+esc(it.title||'')+'" style="width:120px;text-decoration:none;color:var(--ink)"><img src="https://i.ytimg.com/vi/'+it.id+'/mqdefault.jpg" style="width:100%;border-radius:6px;display:block;aspect-ratio:16/9;object-fit:cover;background:#eee;border:2px solid '+(ROLE_C[it.role]||'var(--line)')+'"><div style="margin-top:2px">'+roleBadge(it.role)+(it.vph!=null?' <span style="font-size:10px">⚡'+it.vph+'</span>':'')+'</div></a>').join('')+'</div>'
+           +'<div style="font-size:12.5px;line-height:1.6;white-space:pre-wrap">'+esc(n.note||'')+'</div>'
+           +'<button class="pill lt" data-notedel="'+esc(n.id)+'" style="font-size:10px;margin-top:4px">削除</button></div>').join('')+'</div>';
       }
     }
   }
@@ -502,10 +534,25 @@ async function renderTitleLab(){
   $main.querySelectorAll("[data-tlt]").forEach(b=>b.onclick=()=>{TLTAB=b.getAttribute("data-tlt");renderTitleLab();});
   $main.querySelectorAll("[data-tlb]").forEach(b=>b.onclick=()=>{TLBENCH=b.getAttribute("data-tlb");renderTitleLab();});
   $main.querySelectorAll("[data-tls]").forEach(b=>b.onclick=()=>{TLSORT=b.getAttribute("data-tls");renderTitleLab();});
-  $main.querySelectorAll("[data-vphx]").forEach(el=>el.onclick=e=>{ if(e.target.closest("[data-copy],a"))return; const id=el.getAttribute("data-vphx"); TLVPHOPEN.has(id)?TLVPHOPEN.delete(id):TLVPHOPEN.add(id); renderTitleLab(); });
+  $main.querySelectorAll("[data-vphx]").forEach(el=>el.onclick=e=>{ if(e.target.closest("[data-copy],[data-vphsel],a"))return; const id=el.getAttribute("data-vphx"); TLVPHOPEN.has(id)?TLVPHOPEN.delete(id):TLVPHOPEN.add(id); renderTitleLab(); });
   $main.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{ navigator.clipboard.writeText(b.getAttribute("data-copy")); b.textContent="✓"; setTimeout(()=>b.textContent="コピー",900); });
+  /* ⚡VPHタブ: 混合ランキング切替・TOP/ワースト切替・サムネ比較メモ */
+  $main.querySelectorAll("[data-vphch]").forEach(b=>b.onclick=()=>{ TLVPHCH=b.getAttribute("data-vphch"); renderTitleLab(); });
+  $main.querySelectorAll("[data-vphdir]").forEach(b=>b.onclick=()=>{ TLVPHDIR=b.getAttribute("data-vphdir"); renderTitleLab(); });
+  $main.querySelectorAll("[data-vphsel]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); const id=b.getAttribute("data-vphsel"); const i=TLVPHSEL.findIndex(s=>s.id===id);
+    if(i>=0){ TLVPHSEL.splice(i,1); }
+    else{ let vv=null; TLDATA.channels.some(c=>(vv=c.videos.find(x=>x.id===id))); const r=(TLVPH&&TLVPH.vph||{})[id]||{};
+      TLVPHSEL.push({id, role:b.getAttribute("data-vphrole"), vph:(r.vph!=null?r.vph:null), title:vv?vv.title:""}); }
+    renderTitleLab(); });
+  $main.querySelectorAll("[data-vphunsel]").forEach(b=>b.onclick=()=>{ TLVPHSEL=TLVPHSEL.filter(s=>s.id!==b.getAttribute("data-vphunsel")); renderTitleLab(); });
+  const tn=document.getElementById("tnText"); if(tn) tn.oninput=()=>{ TLVPHNOTE=tn.value; };
+  const tnS=document.getElementById("tnSave"); if(tnS) tnS.onclick=async()=>{ if(!TLVPHNOTE.trim()){ alert("課題・修正点のメモを入れてから保存してください"); return; }
+    thumbnotes.unshift({id:"tn"+Date.now(), date:new Date().toLocaleString("ja-JP"), items:TLVPHSEL.slice(), note:TLVPHNOTE.trim()});
+    TLVPHSEL=[]; TLVPHNOTE=""; await saveCloud(); renderTitleLab(); };
+  const tnC=document.getElementById("tnClear"); if(tnC) tnC.onclick=()=>{ TLVPHSEL=[]; TLVPHNOTE=""; renderTitleLab(); };
+  $main.querySelectorAll("[data-notedel]").forEach(b=>b.onclick=async()=>{ if(!confirm("このサムネ課題メモを削除しますか？"))return; thumbnotes=thumbnotes.filter(n=>n.id!==b.getAttribute("data-notedel")); await saveCloud(); renderTitleLab(); });
   const inp=document.getElementById("tlInput"), res=document.getElementById("tlResult");
-  inp.oninput=()=>{ const t=inp.value; if(!t.trim()){res.innerHTML="";return;}
+  if(inp) inp.oninput=()=>{ const t=inp.value; if(!t.trim()){res.innerHTML="";return;}
     const ng=mark(t);
     const kw=tlTokens(t).slice(0,4), kwOK=kw.includes("focus")&&kw.includes("music");
     let out= ng.length? '<div><span style="color:#c62828;font-weight:800">✗ ベンチ先に無い語: </span>'+ng.map(w=>'<mark style="background:#ffd8d6;color:#b71c1c;font-weight:800;border-radius:3px;padding:0 3px">'+esc(w)+'</mark>').join(" ")+'</div>'
