@@ -188,7 +188,7 @@ const configured = !String(firebaseConfig.apiKey).startsWith("PASTE_");
 let auth=null, db=null, user=null;
 if(configured){ const fapp=initializeApp(firebaseConfig); auth=getAuth(fapp); db=getFirestore(fapp); }
 
-let genres=[], benches=[], qas=[], steps={}, daily={}, goal={}, tracklog={}, kaizen=[], sunodl=[], thumbnotes=[], view="genre";
+let genres=[], benches=[], qas=[], steps={}, daily={}, goal={}, tracklog={}, kaizen=[], sunodl=[], thumbnotes=[], truthEye={analyses:[],hyps:[]}, view="genre";
 let trackMetric="subs";
 let sunoEditId;
 const $main=document.getElementById("main"), $auth=document.getElementById("auth"), $scrim=document.getElementById("scrim"), $sheet=document.getElementById("sheet");
@@ -232,8 +232,8 @@ function userRef(){ return doc(db,"users",user.uid); }
    日次バックアップ: users/{uid}/backups/{YYYY-MM-DD} に保存前スナップショット（30世代）*/
 let loadFailed=false, lastLoadedAt=0, kpi=[];
 function toast(msg,ok){ let t=document.getElementById("toast"); if(!t){t=document.createElement("div");t.id="toast";t.style.cssText="position:fixed;bottom:74px;left:50%;transform:translateX(-50%);padding:9px 18px;border-radius:99px;font-size:12.5px;font-weight:700;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.25);transition:opacity .3s";document.body.appendChild(t);} t.style.background=ok?"#1b5e20":"#b71c1c"; t.style.color="#fff"; t.textContent=msg; t.style.opacity="1"; clearTimeout(t._h); t._h=setTimeout(()=>t.style.opacity="0",2600); }
-function applyData(d){ genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; goal=d.goal||{}; tracklog=d.tracklog||{}; kaizen=d.kaizen||[]; sunodl=d.sunodl||[]; thumbnotes=d.thumbnotes||[]; kpi=d.kpi||[]; lastLoadedAt=d.updatedAt||0; }
-function packData(){ return {genres,benches,qas,steps,daily,goal,tracklog,kaizen,sunodl,thumbnotes,kpi,updatedAt:Date.now()}; }
+function applyData(d){ genres=d.genres||[]; benches=d.benches||[]; qas=d.qas||[]; steps=d.steps||{}; daily=d.daily||{}; goal=d.goal||{}; tracklog=d.tracklog||{}; kaizen=d.kaizen||[]; sunodl=d.sunodl||[]; thumbnotes=d.thumbnotes||[]; truthEye=d.truthEye||{analyses:[],hyps:[]}; truthEye.analyses=truthEye.analyses||[]; truthEye.hyps=truthEye.hyps||[]; kpi=d.kpi||[]; lastLoadedAt=d.updatedAt||0; }
+function packData(){ return {genres,benches,qas,steps,daily,goal,tracklog,kaizen,sunodl,thumbnotes,truthEye,kpi,updatedAt:Date.now()}; }
 async function loadCloud(){
   try{ const snap=await getDoc(userRef());
     if(snap.exists()){ applyData(snap.data()); }
@@ -321,6 +321,7 @@ function render(){ document.body.classList.toggle("wide-hub",view==="genre"); if
 /* ===== 🏷 タイトルLab（キラ式TTP: 判定は常に「今のベンチ先の実タイトル」から機械的に） ===== */
 let TLDATA=null, TLBENCH=null, TLSORT='momentum', TLTAB='thumb', TLCOM=null, TLVPH=null, TLVPHOPEN=new Set();  // 初期タブ=サムネ（キラ式: 改善優先度①サムネ）
 let TLVPHCH='__all__', TLVPHDIR='top', TLVPHSEL=[], TLVPHNOTE='';  // VPHタブ: 混合ランキングのch絞り込み・TOP/ワースト表示・サムネ比較の選択と下書き
+let TEGOOD=null, TEBAD=null, TEF={gbg:'',gch:'',gwh:'',bbg:'',bch:'',bwh:'',insight:''};  // 👁真実の目: 良い例/悪い例の選択とSTEP1ファクト下書き
 function tlTokens(t){ return (t||"").toLowerCase().replace(/[–—\-,&|:!?.()\[\]]/g," ").split(/\s+/).filter(w=>w.length>1); }
 async function renderTitleLab(){
   $main.innerHTML='<div class="card">読み込み中…</div>';
@@ -335,7 +336,7 @@ async function renderTitleLab(){
   const mark=t=>tlTokens(t).filter(w=>!vocab.has(w)&&!/^\d+$/.test(w));
   const ngOwn=own.map(v=>({...v,ng:mark(v.title)}));
   const ngCount=ngOwn.filter(v=>v.ng.length).length;
-  const TABS={thumb:'🖼 サムネ',title:'📝 タイトル',desc:'📄 概要欄',voice:'💬 視聴者の声',vph:'⚡ VPH（今伸びてる）',check:'✅ チェック'};  // キラ式の改善優先順: ①サムネ→②タイトル→③中身
+  const TABS={thumb:'🖼 サムネ',shingan:'👁 真実の目',title:'📝 タイトル',desc:'📄 概要欄',voice:'💬 視聴者の声',vph:'⚡ VPH（今伸びてる）',check:'✅ チェック'};  // キラ式の改善優先順: ①サムネ→②タイトル→③中身
   let h='<div class="card" style="padding:10px 14px"><div style="font-weight:800;font-size:15px">🔬 ベンチ分析 <span style="font-size:11px;color:var(--muted);font-weight:600">ベンチ先の実タイトルが唯一の正解（キラ式TTP）・毎朝6:30自動更新（'+esc(TLDATA.updated||"?")+'時点）</span></div>'
    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+Object.entries(TABS).map(([k,lb])=>'<button class="pill lt" data-tlt="'+k+'" style="'+(TLTAB===k?'background:var(--ink);color:#fff;border-color:var(--ink)':'')+'">'+lb+'</button>').join('')+'</div></div>';
   const dpd=v=>{const h=Object.entries(v.views_hist||{}).sort();if(h.length<2)return null;const a=h[h.length-2],b=h[h.length-1];const days=Math.max(1,Math.round((new Date(b[0])-new Date(a[0]))/864e5));return Math.round((b[1]-a[1])/days);};
@@ -491,6 +492,56 @@ async function renderTitleLab(){
        +own.slice(0,8).map(v=>'<a href="https://youtu.be/'+v.id+'" target="_blank" rel="noopener" style="text-decoration:none;color:var(--ink)"><img src="https://i.ytimg.com/vi/'+v.id+'/mqdefault.jpg" style="width:100%;border-radius:8px;display:block;aspect-ratio:16/9;object-fit:cover;background:#eee" loading="lazy"><div style="font-size:10px;margin-top:3px">'+v.views.toLocaleString()+'回 ・ '+esc((v.published||'').slice(5))+'</div></a>').join('')+'</div></div>';
     }
   }
+  if(TLTAB==='shingan'){
+    /* 👁 真実の目（リベ大式サムネ分析: ①ファクト→②抽象化→③転用。Hirokaメモ準拠・参照記事は会員限定のため本文非掲載） */
+    const TE=truthEye;
+    const pt=personaText();
+    h+='<div class="card" style="border-color:#6a1b9a"><div style="font-weight:800;margin-bottom:4px">👁 真実の目 — サムネの絶対条件を3ステップで見抜く</div>'
+     +'<div style="font-size:12px;line-height:1.9">'
+     +'<b>STEP1 ファクト</b>: 良い例と悪い例を並べ、背景（色味・装飾）／キャラ（種類・表情・服装・色）／全体（雰囲気・シーンがターゲットに沿うか）を言葉で抽出<br>'
+     +'<b>STEP2 抽象化</b>: どの要素が評価されてクリックされとるか仮説→<b>同じ要素の他動画</b>で再生を検証（伸びてなければ絶対条件やない）→繰り返して<b>絶対条件</b>を見つけ、なぜ伸びるか推論<br>'
+     +'<b>STEP3 転用</b>: 絶対条件を自分のチャンネルへ反映（同ジャンルだけやと2番煎じ→ジャンルをまたぐのも有効）</div>'
+     +'<div style="font-size:11px;color:#c62828;font-weight:700;margin-top:6px">⚠ 決めつけリサーチ注意: 人は感情の生き物。「そうだ」と思った瞬間に主観で固まる。常に客観・リサーチは複数で</div>'
+     +(pt?'<div style="font-size:11px;color:var(--muted);margin-top:6px">🎯 ペルソナのニーズ・悩みを解決しとるか＝消費者インサイトを常に意識: '+esc(pt.slice(0,120))+'…</div>':'')
+     +'</div>';
+    const byMom=bench.slice().sort((a,b)=>mom(b)-mom(a));
+    const goods=byMom.slice(0,10), bads=byMom.slice(-10).reverse();
+    const findV=id=>bench.find(v=>v.id===id);
+    const pickRow=(vs,role,cur)=>'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px">'+vs.map(v=>'<img data-tepick="'+v.id+'" data-terole="'+role+'" loading="lazy" src="https://i.ytimg.com/vi/'+v.id+'/mqdefault.jpg" title="'+esc(v.title)+'　'+esc(v.ch||'')+'" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:6px;cursor:pointer;border:3px solid '+(cur===v.id?(role==='good'?'#2e7d32':'#c62828'):'transparent')+'">').join('')+'</div>';
+    const factBox=(id,ph,val)=>'<textarea data-tef="'+id+'" rows="2" placeholder="'+ph+'" style="width:100%;box-sizing:border-box;font:inherit;font-size:12px;padding:6px;border:1px solid var(--line);border-radius:8px;margin-top:4px">'+esc(val||'')+'</textarea>';
+    const side=(vid,label,color,pre)=>{
+      const v=vid?findV(vid):null;
+      return '<div style="flex:1;min-width:240px"><div style="font-weight:800;font-size:12px;color:'+color+';margin-bottom:4px">'+label+(v?'　<span style="font-weight:600;color:var(--muted)">🔥'+mom(v).toLocaleString()+'/日'+(vphOf(v)!=null?'・⚡'+vphOf(v)+'/時':'')+'</span>':'')+'</div>'
+       +(v?'<img src="https://i.ytimg.com/vi/'+v.id+'/mqdefault.jpg" style="width:100%;border-radius:8px;border:2px solid '+color+'">':'<div style="aspect-ratio:16/9;border:2px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">下の候補から選ぶ</div>')
+       +factBox(pre+'bg','背景: 色味（ベージュ/クリーム/パステル…）・装飾はシンプルか小物が細かいか',TEF[pre+'bg'])
+       +factBox(pre+'ch','キャラ: 人なら性別/表情/服装/色味。動物なら種類/何をしとるか',TEF[pre+'ch'])
+       +factBox(pre+'wh','全体: どんなシーンか・勉強/落ち着く/集中の雰囲気がターゲットに沿っとるか',TEF[pre+'wh'])
+       +'</div>';};
+    h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">STEP1 ファクト抽出（良い例 × 悪い例を見比べる）</div>'
+     +'<div style="display:flex;gap:12px;flex-wrap:wrap">'+side(TEGOOD,'✅ 良い例（伸びとる）','#2e7d32','g')+side(TEBAD,'❌ 悪い例（伸びとらん）','#c62828','b')+'</div>'
+     +'<div style="font-size:11px;color:var(--muted);margin:10px 0 4px">候補をタップで選択（上段=勢い上位10＝良い例候補・下段=勢い下位10＝悪い例候補・全ベンチ混合）</div>'
+     +pickRow(goods,'good',TEGOOD)+'<div style="height:6px"></div>'+pickRow(bads,'bad',TEBAD)
+     +factBox('insight','見比べて気づいた差（この差がSTEP2の仮説のタネ）',TEF.insight)
+     +'<div style="display:flex;gap:6px;margin-top:8px"><button class="pill lt" id="teSave" style="background:var(--ink);color:#fff;border-color:var(--ink)">💾 分析を保存</button><button class="pill lt" id="teClear">クリア</button></div></div>';
+    const ST={'検証中':'#b8740a','絶対条件':'#2e7d32','棄却':'#98a3b8'};
+    h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">STEP2 抽象化 → STEP3 転用（仮説→検証→絶対条件→自分のchへ）</div>'
+     +'<div style="display:flex;gap:6px"><input id="teHypIn" type="text" placeholder="仮説（例: 夜景×黒い高級車の背景がクリックされとる）" style="flex:1;font:inherit;font-size:12.5px;padding:7px;border:1px solid var(--line);border-radius:8px"><button class="pill lt" id="teHypAdd">＋仮説</button></div>'
+     +(TE.hyps.length? TE.hyps.map(hy=>'<div style="border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-top:8px">'
+        +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="background:'+ST[hy.status]+';color:#fff;border-radius:4px;padding:0 7px;font-size:10.5px;font-weight:800">'+hy.status+'</span><b style="font-size:12.5px;flex:1">'+esc(hy.text)+'</b><span style="font-size:10px;color:var(--muted)">'+esc(hy.date||'')+'</span><button class="pill lt" data-tehypdel="'+hy.id+'" style="font-size:10px">削除</button></div>'
+        +'<textarea data-tehyp="ev:'+hy.id+'" rows="2" placeholder="検証メモ: 同じ要素の他動画は再生されとるか？（複数・客観で。伸びてなければ絶対条件やない）" style="width:100%;box-sizing:border-box;font:inherit;font-size:11.5px;padding:6px;border:1px solid var(--line);border-radius:8px;margin-top:6px">'+esc(hy.evidence||'')+'</textarea>'
+        +'<div style="display:flex;gap:5px;margin-top:5px">'+Object.keys(ST).map(k=>'<button class="pill lt" data-tehypst="'+hy.id+':'+k+'" style="font-size:10.5px;'+(hy.status===k?'background:'+ST[k]+';color:#fff;border-color:'+ST[k]:'')+'">'+k+'</button>').join('')+'</div>'
+        +(hy.status==='絶対条件'?'<textarea data-tehyp="why:'+hy.id+'" rows="2" placeholder="推論: なぜこの要素だと伸びる？（ペルソナのどのニーズ・悩みに刺さる？）" style="width:100%;box-sizing:border-box;font:inherit;font-size:11.5px;padding:6px;border:1px solid #dcedc8;border-radius:8px;margin-top:6px;background:#f7fbf2">'+esc(hy.why||'')+'</textarea>'
+          +'<textarea data-tehyp="tr:'+hy.id+'" rows="2" placeholder="STEP3 転用: 自分のchのサムネにどう反映する？（同ジャンルは2番煎じ注意→ジャンル跨ぎも検討）" style="width:100%;box-sizing:border-box;font:inherit;font-size:11.5px;padding:6px;border:1px solid #bbdefb;border-radius:8px;margin-top:6px;background:#f4f9ff">'+esc(hy.transfer||'')+'</textarea>':'')
+        +'</div>').join('') : '<div style="font-size:12px;color:var(--muted);margin-top:8px">仮説はまだない。STEP1の「気づいた差」から1つ立ててみる</div>')
+     +'</div>';
+    if(TE.analyses.length){
+      h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">📒 ファクト分析の履歴（'+TE.analyses.length+'件）</div>'
+       +TE.analyses.map(a=>'<div style="border-top:1px solid var(--line);padding:8px 2px"><div style="font-size:10.5px;color:var(--muted)">'+esc(a.date||'')+'</div>'
+         +'<div style="display:flex;gap:8px;margin:5px 0">'+(a.goodId?'<a href="https://youtu.be/'+a.goodId+'" target="_blank" rel="noopener"><img src="https://i.ytimg.com/vi/'+a.goodId+'/mqdefault.jpg" style="width:130px;border-radius:6px;border:2px solid #2e7d32"></a>':'')+(a.badId?'<a href="https://youtu.be/'+a.badId+'" target="_blank" rel="noopener"><img src="https://i.ytimg.com/vi/'+a.badId+'/mqdefault.jpg" style="width:130px;border-radius:6px;border:2px solid #c62828"></a>':'')+'</div>'
+         +'<div style="font-size:11.5px;line-height:1.6;white-space:pre-wrap">'+esc([a.f&&a.f.gbg?'✅背景: '+a.f.gbg:'',a.f&&a.f.gch?'✅キャラ: '+a.f.gch:'',a.f&&a.f.gwh?'✅全体: '+a.f.gwh:'',a.f&&a.f.bbg?'❌背景: '+a.f.bbg:'',a.f&&a.f.bch?'❌キャラ: '+a.f.bch:'',a.f&&a.f.bwh?'❌全体: '+a.f.bwh:'',a.f&&a.f.insight?'💡差: '+a.f.insight:''].filter(Boolean).join('\n'))+'</div>'
+         +'<button class="pill lt" data-teadel="'+esc(a.id)+'" style="font-size:10px;margin-top:4px">削除</button></div>').join('')+'</div>';
+    }
+  }
   if(TLTAB==='desc'){
     const sorted=curVids.slice().sort(SORTS.momentum.fn).slice(0,5);
     const allDesc=bench.map(v=>v.desc||'').filter(Boolean);
@@ -551,6 +602,19 @@ async function renderTitleLab(){
     TLVPHSEL=[]; TLVPHNOTE=""; await saveCloud(); renderTitleLab(); };
   const tnC=document.getElementById("tnClear"); if(tnC) tnC.onclick=()=>{ TLVPHSEL=[]; TLVPHNOTE=""; renderTitleLab(); };
   $main.querySelectorAll("[data-notedel]").forEach(b=>b.onclick=async()=>{ if(!confirm("このサムネ課題メモを削除しますか？"))return; thumbnotes=thumbnotes.filter(n=>n.id!==b.getAttribute("data-notedel")); await saveCloud(); renderTitleLab(); });
+  /* 👁真実の目 */
+  $main.querySelectorAll("[data-tepick]").forEach(el=>el.onclick=()=>{ const id=el.getAttribute("data-tepick"); if(el.getAttribute("data-terole")==='good') TEGOOD=(TEGOOD===id?null:id); else TEBAD=(TEBAD===id?null:id); renderTitleLab(); });
+  $main.querySelectorAll("[data-tef]").forEach(t=>t.oninput=()=>{ TEF[t.getAttribute("data-tef")]=t.value; });
+  const teS=document.getElementById("teSave"); if(teS) teS.onclick=async()=>{ if(!TEGOOD&&!TEBAD&&!Object.values(TEF).some(x=>(x||'').trim())){ alert("良い例か悪い例を選んで、ファクトを書いてから保存してください"); return; }
+    truthEye.analyses.unshift({id:"te"+Date.now(),date:new Date().toLocaleString("ja-JP"),goodId:TEGOOD,badId:TEBAD,f:{...TEF}});
+    TEGOOD=null;TEBAD=null;TEF={gbg:'',gch:'',gwh:'',bbg:'',bch:'',bwh:'',insight:''}; await saveCloud(); renderTitleLab(); };
+  const teC=document.getElementById("teClear"); if(teC) teC.onclick=()=>{ TEGOOD=null;TEBAD=null;TEF={gbg:'',gch:'',gwh:'',bbg:'',bch:'',bwh:'',insight:''}; renderTitleLab(); };
+  const teHA=document.getElementById("teHypAdd"); if(teHA) teHA.onclick=async()=>{ const el=document.getElementById("teHypIn"); const v=el.value.trim(); if(!v)return;
+    truthEye.hyps.unshift({id:"th"+Date.now(),date:new Date().toLocaleDateString("ja-JP"),text:v,evidence:"",status:"検証中",why:"",transfer:""}); await saveCloud(); renderTitleLab(); };
+  $main.querySelectorAll("[data-tehyp]").forEach(t=>t.onchange=async()=>{ const a=t.getAttribute("data-tehyp"); const k=a.slice(0,a.indexOf(":")), id=a.slice(a.indexOf(":")+1); const hy=truthEye.hyps.find(x=>x.id===id); if(!hy)return; if(k==="ev")hy.evidence=t.value; if(k==="why")hy.why=t.value; if(k==="tr")hy.transfer=t.value; await saveCloud(); });
+  $main.querySelectorAll("[data-tehypst]").forEach(b=>b.onclick=async()=>{ const a=b.getAttribute("data-tehypst"); const id=a.slice(0,a.indexOf(":")), st=a.slice(a.indexOf(":")+1); const hy=truthEye.hyps.find(x=>x.id===id); if(!hy)return; hy.status=st; await saveCloud(); renderTitleLab(); });
+  $main.querySelectorAll("[data-tehypdel]").forEach(b=>b.onclick=async()=>{ if(!confirm("この仮説を削除しますか？"))return; truthEye.hyps=truthEye.hyps.filter(x=>x.id!==b.getAttribute("data-tehypdel")); await saveCloud(); renderTitleLab(); });
+  $main.querySelectorAll("[data-teadel]").forEach(b=>b.onclick=async()=>{ if(!confirm("この分析を削除しますか？"))return; truthEye.analyses=truthEye.analyses.filter(x=>x.id!==b.getAttribute("data-teadel")); await saveCloud(); renderTitleLab(); });
   const inp=document.getElementById("tlInput"), res=document.getElementById("tlResult");
   if(inp) inp.oninput=()=>{ const t=inp.value; if(!t.trim()){res.innerHTML="";return;}
     const ng=mark(t);
