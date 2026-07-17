@@ -403,7 +403,8 @@ async function renderTitleLab(){
           +vphChip(v)+(star(v)?'<span style="color:#e65100;font-weight:800">⭐推奨</span>':'')+ageBadge(v)
           +(TLVPHCH==='__all__'&&v.ch?'<span style="color:var(--muted);font-size:10px">'+esc(v.ch)+'</span>':'')
           +'<span style="color:var(--muted);margin-left:auto">'+v.views.toLocaleString()+'回</span>'
-          +'<button class="pill lt" data-vphsel="'+v.id+'" data-vphrole="'+role+'" style="font-size:10px;flex-shrink:0;'+(sel?'background:'+ROLE_C[role]+';color:#fff;border-color:'+ROLE_C[role]:'')+'">'+(sel?'✓比較中':'＋比較')+'</button></div>'
+          +'<button class="pill lt" data-vphsel="'+v.id+'" data-vphrole="'+role+'" style="font-size:10px;flex-shrink:0;'+(sel?'background:'+ROLE_C[role]+';color:#fff;border-color:'+ROLE_C[role]:'')+'">'+(sel?'✓比較中':'＋比較')+'</button>'
+          +(role!=='自分'?'<button class="pill lt" data-teset="'+v.id+'" data-teslot="'+(role==='TOP'?'good':'bad')+'" title="👁真実の目の'+(role==='TOP'?'良い例':'悪い例')+'にセットして分析タブへ" style="font-size:10px;flex-shrink:0;color:'+(role==='TOP'?'#2e7d32':'#c62828')+'">👁'+(role==='TOP'?'良い例に':'悪い例に')+'</button>':'')+'</div>'
         +(openx?'<div style="padding:0 8px 8px;font-size:12px;line-height:1.55;border-top:1px dashed var(--line)"><div style="margin-top:6px">'+esc(v.title)+'</div>'
           +'<div style="color:var(--muted);font-size:10.5px;margin:4px 0">'+esc((v.published||'').slice(0,10))+' 公開・⚡は直近'+(TLVPH.vph[v.id]?TLVPH.vph[v.id].window_h:'?')+'h窓</div>'
           +'<div style="display:flex;gap:6px"><button class="pill lt" data-copy="'+esc(v.title)+'">タイトルをコピー</button>'
@@ -504,8 +505,12 @@ async function renderTitleLab(){
      +'<div style="font-size:11px;color:#c62828;font-weight:700;margin-top:6px">⚠ 決めつけリサーチ注意: 人は感情の生き物。「そうだ」と思った瞬間に主観で固まる。常に客観・リサーチは複数で</div>'
      +(pt?'<div style="font-size:11px;color:var(--muted);margin-top:6px">🎯 ペルソナのニーズ・悩みを解決しとるか＝消費者インサイトを常に意識: '+esc(pt.slice(0,120))+'…</div>':'')
      +'</div>';
+    const hasVph=TLVPH&&TLVPH.vph&&Object.keys(TLVPH.vph).length>0;
+    const withV=bench.filter(v=>vphOf(v)!=null);
     const byMom=bench.slice().sort((a,b)=>mom(b)-mom(a));
-    const goods=byMom.slice(0,10), bads=byMom.slice(-10).reverse();
+    // 伸びてる/伸びてないの評価は⚡VPH優先（今の評価）。VPH未取得時は🔥勢い順でフォールバック
+    const goods=(hasVph&&withV.length>=6)? withV.slice().sort((a,b)=>vphOf(b)-vphOf(a)).slice(0,10) : byMom.slice(0,10);
+    const bads =(hasVph&&withV.length>=6)? withV.slice().sort((a,b)=>vphOf(a)-vphOf(b)).slice(0,10) : byMom.slice(-10).reverse();
     const findV=id=>bench.find(v=>v.id===id);
     const pickRow=(vs,role,cur)=>'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px">'+vs.map(v=>'<img data-tepick="'+v.id+'" data-terole="'+role+'" loading="lazy" src="https://i.ytimg.com/vi/'+v.id+'/mqdefault.jpg" title="'+esc(v.title)+'　'+esc(v.ch||'')+'" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:6px;cursor:pointer;border:3px solid '+(cur===v.id?(role==='good'?'#2e7d32':'#c62828'):'transparent')+'">').join('')+'</div>';
     const factBox=(id,ph,val)=>'<textarea data-tef="'+id+'" rows="2" placeholder="'+ph+'" style="width:100%;box-sizing:border-box;font:inherit;font-size:12px;padding:6px;border:1px solid var(--line);border-radius:8px;margin-top:4px">'+esc(val||'')+'</textarea>';
@@ -519,7 +524,7 @@ async function renderTitleLab(){
        +'</div>';};
     h+='<div class="card"><div style="font-weight:800;margin-bottom:6px">STEP1 ファクト抽出（良い例 × 悪い例を見比べる）</div>'
      +'<div style="display:flex;gap:12px;flex-wrap:wrap">'+side(TEGOOD,'✅ 良い例（伸びとる）','#2e7d32','g')+side(TEBAD,'❌ 悪い例（伸びとらん）','#c62828','b')+'</div>'
-     +'<div style="font-size:11px;color:var(--muted);margin:10px 0 4px">候補をタップで選択（上段=勢い上位10＝良い例候補・下段=勢い下位10＝悪い例候補・全ベンチ混合）</div>'
+     +'<div style="font-size:11px;color:var(--muted);margin:10px 0 4px">候補をタップで選択（上段=⚡VPH上位10＝今伸びとる・下段=⚡VPH下位10＝今伸びとらん・全ベンチ混合。⚡未取得時は🔥勢い順）。⚡VPHタブの「👁良い例に/悪い例に」からも送れる</div>'
      +pickRow(goods,'good',TEGOOD)+'<div style="height:6px"></div>'+pickRow(bads,'bad',TEBAD)
      +factBox('insight','見比べて気づいた差（この差がSTEP2の仮説のタネ）',TEF.insight)
      +'<div style="display:flex;gap:6px;margin-top:8px"><button class="pill lt" id="teSave" style="background:var(--ink);color:#fff;border-color:var(--ink)">💾 分析を保存</button><button class="pill lt" id="teClear">クリア</button></div></div>';
@@ -585,7 +590,7 @@ async function renderTitleLab(){
   $main.querySelectorAll("[data-tlt]").forEach(b=>b.onclick=()=>{TLTAB=b.getAttribute("data-tlt");renderTitleLab();});
   $main.querySelectorAll("[data-tlb]").forEach(b=>b.onclick=()=>{TLBENCH=b.getAttribute("data-tlb");renderTitleLab();});
   $main.querySelectorAll("[data-tls]").forEach(b=>b.onclick=()=>{TLSORT=b.getAttribute("data-tls");renderTitleLab();});
-  $main.querySelectorAll("[data-vphx]").forEach(el=>el.onclick=e=>{ if(e.target.closest("[data-copy],[data-vphsel],a"))return; const id=el.getAttribute("data-vphx"); TLVPHOPEN.has(id)?TLVPHOPEN.delete(id):TLVPHOPEN.add(id); renderTitleLab(); });
+  $main.querySelectorAll("[data-vphx]").forEach(el=>el.onclick=e=>{ if(e.target.closest("[data-copy],[data-vphsel],[data-teset],a"))return; const id=el.getAttribute("data-vphx"); TLVPHOPEN.has(id)?TLVPHOPEN.delete(id):TLVPHOPEN.add(id); renderTitleLab(); });
   $main.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{ navigator.clipboard.writeText(b.getAttribute("data-copy")); b.textContent="✓"; setTimeout(()=>b.textContent="コピー",900); });
   /* ⚡VPHタブ: 混合ランキング切替・TOP/ワースト切替・サムネ比較メモ */
   $main.querySelectorAll("[data-vphch]").forEach(b=>b.onclick=()=>{ TLVPHCH=b.getAttribute("data-vphch"); renderTitleLab(); });
@@ -596,6 +601,7 @@ async function renderTitleLab(){
       TLVPHSEL.push({id, role:b.getAttribute("data-vphrole"), vph:(r.vph!=null?r.vph:null), title:vv?vv.title:""}); }
     renderTitleLab(); });
   $main.querySelectorAll("[data-vphunsel]").forEach(b=>b.onclick=()=>{ TLVPHSEL=TLVPHSEL.filter(s=>s.id!==b.getAttribute("data-vphunsel")); renderTitleLab(); });
+  $main.querySelectorAll("[data-teset]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); const id=b.getAttribute("data-teset"); if(b.getAttribute("data-teslot")==='good') TEGOOD=id; else TEBAD=id; TLTAB='shingan'; renderTitleLab(); });
   const tn=document.getElementById("tnText"); if(tn) tn.oninput=()=>{ TLVPHNOTE=tn.value; };
   const tnS=document.getElementById("tnSave"); if(tnS) tnS.onclick=async()=>{ if(!TLVPHNOTE.trim()){ alert("課題・修正点のメモを入れてから保存してください"); return; }
     thumbnotes.unshift({id:"tn"+Date.now(), date:new Date().toLocaleString("ja-JP"), items:TLVPHSEL.slice(), note:TLVPHNOTE.trim()});
